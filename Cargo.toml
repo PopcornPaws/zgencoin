@@ -1,0 +1,13 @@
+[workspace]
+members = [
+	"zgencoin-cryptography",
+]
+
+[profile.dev]
+opt-level = 0
+
+[profile.test]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
