@@ -1,6 +1,6 @@
 [workspace]
 members = [
-	"zgencoin-cryptography",
+	"zgc-crypto",
 ]
 
 [profile.dev]
