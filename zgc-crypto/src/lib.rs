@@ -1,5 +1,4 @@
 #![feature(array_chunks)]
-//
 //fn sha256(input: String) -> [u8; 32] {
 //    // STEP 1 >> Preprocessing
 //    // 1) convert to binary
@@ -206,6 +205,9 @@ mod test {
 
     #[test]
     fn slice_to_string_conversion() {
+        let bytes = &[];
+        assert_eq!(slice_to_string(bytes), "");
+
         let bytes = &[0x22, 0x11, 0xdd, 0xff];
         assert_eq!(slice_to_string(bytes), "2211ddff");
 
@@ -231,7 +233,9 @@ mod test {
             "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9"
         );
 
-        let encoded = sha256(String::from("this sentence is definitely longer than 32 bytes"));
+        let encoded = sha256(String::from(
+            "this sentence is definitely longer than 32 bytes",
+        ));
         assert_eq!(
             slice_to_string(&encoded),
             "9ff223450994e1d1fdc09caf6736fc2e17f82a21e3619d8ca00ab4829314b650"
