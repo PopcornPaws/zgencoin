@@ -234,11 +234,11 @@ mod test {
         );
 
         let encoded = sha256(String::from(
-            "this sentence is definitely longer than 32 bytes",
+            "Do you think that this sentence is definitely longer than 64 bytes?",
         ));
         assert_eq!(
             slice_to_string(&encoded),
-            "9ff223450994e1d1fdc09caf6736fc2e17f82a21e3619d8ca00ab4829314b650"
+            "fba4ec9f441ffbadbf3a21a9976976f34bf2448702c47279677ab594979a3bb9"
         );
     }
 }
