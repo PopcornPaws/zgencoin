@@ -1,26 +1,33 @@
-/// Represents the first 32 bits of the fractional part of the
-/// square roots of the first 8 prime numbers.
+//pub const HASH_0: u32 = 0x6a09e667;
+//pub const HASH_1: u32 = 0xbb67ae85;
+//pub const HASH_2: u32 = 0x3c6ef372;
+//pub const HASH_3: u32 = 0xa54ff53a;
+//pub const HASH_4: u32 = 0x510e527f;
+//pub const HASH_5: u32 = 0x9b05688c;
+//pub const HASH_6: u32 = 0x1f83d9ab;
+//pub const HASH_7: u32 = 0x5be0cd19;
+
+/// Contains the first 32 bits of the fractional part of the
+/// square roots of the first 8 primes.
 ///// ```
-///// # use zgc_crypto::consts::HASH_VALUES;
+///// # use zgc_crypto::consts::HASH_0;
 ///// let fraction = 2.0_f64.sqrt().fract() * 2.0_f64.powi(32);
-///// assert_eq!(HASH_VALUES[0], fraction as u32);
+///// assert_eq!(HASHES[0], fraction as u32);
 ///// ```
-#[rustfmt::skip]
-pub const HASH_VALUES: &[u32] = &[
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+pub const HASHES: [u32; 8] = [
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
 ];
 
 #[test]
 fn hash_values() {
     let fraction = 2.0_f64.sqrt().fract() * 2.0_f64.powi(32);
-    assert_eq!(HASH_VALUES[0], fraction as u32);
+    assert_eq!(HASHES[0], fraction as u32);
 
     let fraction = 3.0_f64.sqrt().fract() * 2.0_f64.powi(32);
-    assert_eq!(HASH_VALUES[1], fraction as u32);
+    assert_eq!(HASHES[1], fraction as u32);
 
     let fraction = 5.0_f64.sqrt().fract() * 2.0_f64.powi(32);
-    assert_eq!(HASH_VALUES[2], fraction as u32);
+    assert_eq!(HASHES[2], fraction as u32);
 }
 
 /// Represents the first 32 bits of the fractional part of the
