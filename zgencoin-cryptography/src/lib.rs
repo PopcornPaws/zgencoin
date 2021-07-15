@@ -7,7 +7,7 @@
 //    // STEP 2 >> Initialization of auxiliary hash variables
 //    // 1) first 32 bits of the fractional part of the
 //    //    square root of the first 8 primes (2, 3, 5, 7, 11, 13, 17, 19)
-//    // 2) first 32 bits of the fractional part of the 
+//    // 2) first 32 bits of the fractional part of the
 //    //    cubic root of the first 64 primes (2, 3, 5, 7, 11, ..., 311)
 //    // STEP 3 >> for every 512 bit chunk:
 //    // 1) create a message schedule
@@ -27,7 +27,6 @@ fn preprocess(input: String) -> Vec<u8> {
     let original_length = input_bytes.len(); // in bytes!
 
     input_bytes.push(0b1000_0000);
-
     while input_bytes.len() % 64 != 0 {
         input_bytes.push(0_u8)
     }
@@ -49,7 +48,17 @@ mod test {
     fn preprocessing() {
         let preprocessed_data = preprocess("hello".to_owned());
         assert_eq!(preprocessed_data.len(), 64);
-        assert_eq!(preprocessed_data.len(), 64);
+        assert_eq!(preprocessed_data[5], 0b1000_0000);
         assert_eq!(preprocessed_data[56..], [0_u8, 0, 0, 0, 0, 0, 0, 40]);
+
+        for element in &preprocessed_data[6..56] {
+            assert_eq!(*element, 0_u8);
+        }
+
+        let preprocessed_data =
+            preprocess(String::from_utf8(vec![15_u8; 100]).expect("invalid utf8 bytearray"));
+        assert_eq!(preprocessed_data.len(), 128);
+        assert_eq!(preprocessed_data[100], 0b1000_0000);
+        assert_eq!(preprocessed_data[120..], [0_u8, 0, 0, 0, 0, 0, 3, 32]); // length is 800 in bits
     }
 }
