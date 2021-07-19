@@ -2,6 +2,7 @@
 members = [
 	"zgc-blockchain",
 	"zgc-crypto",
+	"zgc-nodes",
 ]
 
 [profile.dev]
