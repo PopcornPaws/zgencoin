@@ -1,7 +1,38 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-pub type BlockFinder = HashMap<String, &'static Block>;
+pub struct BlockFinder {
+    height2hash: HashMap<usize, &'static str>,
+    hash2block: HashMap<&'static str, &'static Block>,
+}
+
+impl BlockFinder {
+    pub fn new() -> Self {
+        Self {
+            height2hash: HashMap::new(),
+            hash2block: HashMap::new(),
+        }
+    }
+
+    pub fn insert(&mut self, block: &'static Block) {
+        // TODO use hashing function here
+        let hash = Box::leak(Box::new(String::from("Some sha256 hash")));
+        self.height2hash.insert(block.height, hash);
+        self.hash2block.insert(hash, block);
+    }
+
+    pub fn find_hash(self, hash: &str) -> Option<&'static Block> {
+        self.hash2block.get(hash).map(|block| *block)
+    }
+
+    pub fn find_height(self, height: usize) -> Option<&'static Block> {
+        if let Some(hash) = self.height2hash.get(&height) {
+            self.hash2block.get(*hash).map(|block| *block)
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct Address([u8; 20]);
@@ -35,10 +66,14 @@ pub struct Blockchain {
 }
 
 pub struct Block {
-    created_at: Instant,
     height: usize,
-    previous_hash: &'static str,
+    header: BlockHeader,
     data: TxData,
+}
+
+pub struct BlockHeader {
+    created_at: Instant,
+    previous_hash: &'static str,
     difficulty: u8,
     nonce: u32,
 }
@@ -78,9 +113,11 @@ mod test {
     #[test]
     fn address() {
         let address_str = "0123456789abcdeffedcba9876543210aabbccdd";
-
         let address = Address::from_str(address_str).expect("failed to parse address string");
+        assert_eq!(address.to_string(), address_str);
 
+        let address_str_0x = String::from("0x") + address_str;
+        let address = Address::from_str(&address_str_0x).expect("failed to parse address string");
         assert_eq!(address.to_string(), address_str);
     }
 }
