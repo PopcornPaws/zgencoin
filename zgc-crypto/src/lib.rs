@@ -1,21 +1,19 @@
 #![feature(array_chunks)]
-//fn sha256(input: String) -> [u8; 32] {
-//    // STEP 1 >> Preprocessing
-//    // 1) convert to binary
-//    // 2) append a single 1 bit
-//    // 3) pad with 0 until length is a multiple of 512
-//    // 4) replace last 64 bytes with the input data length
-//    // STEP 2 >> Initialization of auxiliary hash variables
-//    // 1) first 32 bits of the fractional part of the
-//    //    square root of the first 8 primes (2, 3, 5, 7, 11, 13, 17, 19)
-//    // 2) first 32 bits of the fractional part of the
-//    //    cubic root of the first 64 primes (2, 3, 5, 7, 11, ..., 311)
-//    // STEP 3 >> for every 512 bit chunk:
-//    // 1) create a message schedule
-//    // 2) compression
-//    // 3) modify hash values
-//    // STEP 4 >> concatenate final hash
-//}
+// STEP 1 >> Preprocessing
+// 1) convert to binary
+// 2) append a single 1 bit
+// 3) pad with 0 until length is a multiple of 512
+// 4) replace last 64 bytes with the input data length
+// STEP 2 >> Initialization of auxiliary hash variables
+// 1) first 32 bits of the fractional part of the
+//    square root of the first 8 primes (2, 3, 5, 7, 11, 13, 17, 19)
+// 2) first 32 bits of the fractional part of the
+//    cubic root of the first 64 primes (2, 3, 5, 7, 11, ..., 311)
+// STEP 3 >> for every 512 bit chunk:
+// 1) create a message schedule
+// 2) compression
+// 3) modify hash values
+// STEP 4 >> concatenate final hash
 
 mod consts;
 use consts::{HASHES, ROUND_CONSTANTS};
@@ -23,21 +21,6 @@ use consts::{HASHES, ROUND_CONSTANTS};
 pub fn sha256(input: String) -> [u8; 32] {
     let processed = preprocess(input);
 
-    //let mut message_schedule = Vec::<u32>::new();
-    //for i in 0..processed_input_vec.len() / 4 {
-    //    let mut u32_bytes = [0_u8; 4];
-    //    u32_bytes.copy_from_slice(&processed_input_vec[4 * i..4 * i + 4]);
-    //    message_schedule.push(u32::from_be_bytes(u32_bytes));
-    //}
-
-    //let message_schedule = processed_input_vec
-    //    .chunks(4)
-    //    .map(|chunk| {
-    //        let mut u32_bytes = [0_u8; 4];
-    //        u32_bytes.copy_from_slice(chunk);
-    //        u32::from_be_bytes(u32_bytes)
-    //    })
-    //    .collect::<Vec<u32>>();
 
     let mut hashes = HASHES;
     // FOR_EACH CHUNK
@@ -47,14 +30,18 @@ pub fn sha256(input: String) -> [u8; 32] {
     });
 
     let mut digest = [0_u8; 32];
-    digest[0..4].copy_from_slice(&hashes[0].to_be_bytes());
-    digest[4..8].copy_from_slice(&hashes[1].to_be_bytes());
-    digest[8..12].copy_from_slice(&hashes[2].to_be_bytes());
-    digest[12..16].copy_from_slice(&hashes[3].to_be_bytes());
-    digest[16..20].copy_from_slice(&hashes[4].to_be_bytes());
-    digest[20..24].copy_from_slice(&hashes[5].to_be_bytes());
-    digest[24..28].copy_from_slice(&hashes[6].to_be_bytes());
-    digest[28..].copy_from_slice(&hashes[7].to_be_bytes());
+    digest
+        .array_chunks_mut::<4>()
+        .enumerate()
+        .for_each(|(i, chunk)| chunk.copy_from_slice(&hashes[i].to_be_bytes()));
+    //digest[0..4].copy_from_slice(&hashes[0].to_be_bytes());
+    //digest[4..8].copy_from_slice(&hashes[1].to_be_bytes());
+    //digest[8..12].copy_from_slice(&hashes[2].to_be_bytes());
+    //digest[12..16].copy_from_slice(&hashes[3].to_be_bytes());
+    //digest[16..20].copy_from_slice(&hashes[4].to_be_bytes());
+    //digest[20..24].copy_from_slice(&hashes[5].to_be_bytes());
+    //digest[24..28].copy_from_slice(&hashes[6].to_be_bytes());
+    //digest[28..].copy_from_slice(&hashes[7].to_be_bytes());
 
     digest
 }
@@ -86,6 +73,21 @@ fn preprocess(input: String) -> Vec<u8> {
 }
 
 fn schedule(chunk_512: &[u8]) -> Vec<u32> {
+    //let mut message_schedule = Vec::<u32>::new();
+    //for i in 0..processed_input_vec.len() / 4 {
+    //    let mut u32_bytes = [0_u8; 4];
+    //    u32_bytes.copy_from_slice(&processed_input_vec[4 * i..4 * i + 4]);
+    //    message_schedule.push(u32::from_be_bytes(u32_bytes));
+    //}
+
+    //let message_schedule = processed_input_vec
+    //    .chunks(4)
+    //    .map(|chunk| {
+    //        let mut u32_bytes = [0_u8; 4];
+    //        u32_bytes.copy_from_slice(chunk);
+    //        u32::from_be_bytes(u32_bytes)
+    //    })
+    //    .collect::<Vec<u32>>();
     debug_assert_eq!(chunk_512.len(), 64, "chunk has to be 64 bytes long");
     let mut scheduled = chunk_512
         .array_chunks::<4>()
