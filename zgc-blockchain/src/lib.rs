@@ -2,17 +2,19 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-pub struct BlockFinder<'a> {
+pub struct Blockchain<'a> {
     height2hash: HashMap<usize, &'a str>,
     hash2block: HashMap<&'a str, Block>,
 }
 
-impl BlockFinder<'_> {
+impl Blockchain<'_> {
     pub fn new() -> Self {
-        Self {
+        let bc = Self {
             height2hash: HashMap::new(),
             hash2block: HashMap::new(),
-        }
+        };
+        bc.insert(Block::genesis());
+        empty
     }
 
     pub fn insert(&mut self, block: Block) {
@@ -33,14 +35,21 @@ impl BlockFinder<'_> {
             None
         }
     }
+
+    pub fn last(&self) -> Option<&Block> {
+        self.find_height(self.hash2block.len())
+    }
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, Default)]
-pub struct Address([u8; 20]);
+pub type Address = Hash<20>;
+pub type H256 = Hash<32>;
 
-impl Address {
+#[derive(Deserialize, Serialize, Clone, Copy)]
+pub struct Hash<const N: usize>([u8; N]);
+
+impl<const N: usize> Hash<N> {
     pub fn from_str(string: &str) -> Result<Self, String> {
-        let mut address = [0_u8; 20];
+        let mut array = [0_u8; N];
 
         string
             .trim_start_matches("0x")
@@ -50,10 +59,10 @@ impl Address {
             .for_each(|(i, bytes)| {
                 let parsed = u8::from_str_radix(std::str::from_utf8(bytes).unwrap(), 16)
                     .expect("input contains invalid data");
-                address[i] = parsed;
+                array[i] = parsed;
             });
 
-        Ok(Address(address))
+        Ok(Self(array))
     }
 
     pub fn to_string(&self) -> String {
@@ -61,26 +70,26 @@ impl Address {
     }
 }
 
-pub struct Blockchain<'a> {
-    block_finder: BlockFinder<'a>,
-    difficulty: u8,
-}
-
-impl Blockchain<'_> {
-    pub fn new_with_difficulty(difficulty: u8) -> Self {
-        let mut block_finder = BlockFinder::new();
-        block_finder.insert(Block::genesis());
-
-        Self {
-            block_finder,
-            difficulty,
-        }
-    }
-
-    pub fn insert_block(&mut self, block: Block) {
-        self.block_finder.insert(block)
-    }
-}
+//pub struct Blockchain<'a> {
+//    block_finder: BlockFinder<'a>,
+//    difficulty: u8,
+//}
+//
+//impl Blockchain<'_> {
+//    pub fn new_with_difficulty(difficulty: u8) -> Self {
+//        let mut block_finder = BlockFinder::new();
+//        block_finder.insert(Block::genesis());
+//
+//        Self {
+//            block_finder,
+//            difficulty,
+//        }
+//    }
+//
+//    pub fn insert_block(&mut self, block: Block) {
+//        self.block_finder.insert(block)
+//    }
+//}
 
 #[derive(Deserialize, Serialize, Default)]
 pub struct Block {
@@ -98,7 +107,7 @@ impl Block {
 #[derive(Deserialize, Serialize, Default)]
 pub struct BlockHeader {
     created_at: u64,
-    previous_hash: String,
+    previous_hash: H256,
     nonce: u32,
 }
 

@@ -6,5 +6,6 @@ edition = "2018"
 
 [dependencies]
 async-std = "1.9"
+serde_json = "1.0"
 
 zgc-blockchain = { path = "../zgc-blockchain" }
