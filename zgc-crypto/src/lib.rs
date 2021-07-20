@@ -21,7 +21,6 @@ use consts::{HASHES, ROUND_CONSTANTS};
 pub fn sha256(input: String) -> [u8; 32] {
     let processed = preprocess(input);
 
-
     let mut hashes = HASHES;
     // FOR_EACH CHUNK
     processed.array_chunks::<64>().for_each(|chunk| {
@@ -167,6 +166,7 @@ fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
 mod test {
     use super::*;
 
+    // TODO move this to zgc-common (dev-depencency showcase)
     fn slice_to_string(slice: &[u8]) -> String {
         slice.iter().map(|byte| format!("{:02x}", byte)).collect()
     }
