@@ -1,12 +1,13 @@
 use std::collections::HashMap;
-use std::time::Instant;
 
-pub struct BlockFinder {
-    height2hash: HashMap<usize, &'static str>,
-    hash2block: HashMap<&'static str, &'static Block>,
+use serde::{Deserialize, Serialize};
+
+pub struct BlockFinder<'a> {
+    height2hash: HashMap<usize, &'a str>,
+    hash2block: HashMap<&'a str, Block>,
 }
 
-impl BlockFinder {
+impl BlockFinder<'_> {
     pub fn new() -> Self {
         Self {
             height2hash: HashMap::new(),
@@ -14,27 +15,27 @@ impl BlockFinder {
         }
     }
 
-    pub fn insert(&mut self, block: &'static Block) {
+    pub fn insert(&mut self, block: Block) {
         // TODO use hashing function here
         let hash = Box::leak(Box::new(String::from("Some sha256 hash")));
         self.height2hash.insert(block.height, hash);
         self.hash2block.insert(hash, block);
     }
 
-    pub fn find_hash(self, hash: &str) -> Option<&'static Block> {
-        self.hash2block.get(hash).map(|block| *block)
+    pub fn find_hash(&self, hash: &str) -> Option<&Block> {
+        self.hash2block.get(hash)
     }
 
-    pub fn find_height(self, height: usize) -> Option<&'static Block> {
+    pub fn find_height(&self, height: usize) -> Option<&Block> {
         if let Some(hash) = self.height2hash.get(&height) {
-            self.hash2block.get(*hash).map(|block| *block)
+            self.hash2block.get(*hash)
         } else {
             None
         }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default)]
 pub struct Address([u8; 20]);
 
 impl Address {
@@ -60,25 +61,48 @@ impl Address {
     }
 }
 
-pub struct Blockchain {
-    block_finder: BlockFinder,
+pub struct Blockchain<'a> {
+    block_finder: BlockFinder<'a>,
     difficulty: u8,
 }
 
+impl Blockchain<'_> {
+    pub fn new_with_difficulty(difficulty: u8) -> Self {
+        let mut block_finder = BlockFinder::new();
+        block_finder.insert(Block::genesis());
+
+        Self {
+            block_finder,
+            difficulty,
+        }
+    }
+
+    pub fn insert_block(&mut self, block: Block) {
+        self.block_finder.insert(block)
+    }
+}
+
+#[derive(Deserialize, Serialize, Default)]
 pub struct Block {
     height: usize,
     header: BlockHeader,
     data: TxData,
 }
 
+impl Block {
+    fn genesis() -> Self {
+        Self::default()
+    }
+}
+
+#[derive(Deserialize, Serialize, Default)]
 pub struct BlockHeader {
-    created_at: Instant,
-    previous_hash: &'static str,
-    difficulty: u8,
+    created_at: u64,
+    previous_hash: String,
     nonce: u32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default)]
 pub struct TxData {
     sender: Address,
     recipient: Address,
