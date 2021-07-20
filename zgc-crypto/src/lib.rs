@@ -1,43 +1,26 @@
 #![feature(array_chunks)]
-//fn sha256(input: String) -> [u8; 32] {
-//    // STEP 1 >> Preprocessing
-//    // 1) convert to binary
-//    // 2) append a single 1 bit
-//    // 3) pad with 0 until length is a multiple of 512
-//    // 4) replace last 64 bytes with the input data length
-//    // STEP 2 >> Initialization of auxiliary hash variables
-//    // 1) first 32 bits of the fractional part of the
-//    //    square root of the first 8 primes (2, 3, 5, 7, 11, 13, 17, 19)
-//    // 2) first 32 bits of the fractional part of the
-//    //    cubic root of the first 64 primes (2, 3, 5, 7, 11, ..., 311)
-//    // STEP 3 >> for every 512 bit chunk:
-//    // 1) create a message schedule
-//    // 2) compression
-//    // 3) modify hash values
-//    // STEP 4 >> concatenate final hash
-//}
+use zgc_common::H256;
+// STEP 1 >> Preprocessing
+// 1) convert to binary
+// 2) append a single 1 bit
+// 3) pad with 0 until length is a multiple of 512
+// 4) replace last 64 bytes with the input data length
+// STEP 2 >> Initialization of auxiliary hash variables
+// 1) first 32 bits of the fractional part of the
+//    square root of the first 8 primes (2, 3, 5, 7, 11, 13, 17, 19)
+// 2) first 32 bits of the fractional part of the
+//    cubic root of the first 64 primes (2, 3, 5, 7, 11, ..., 311)
+// STEP 3 >> for every 512 bit chunk:
+// 1) create a message schedule
+// 2) compression
+// 3) modify hash values
+// STEP 4 >> concatenate final hash
 
 mod consts;
 use consts::{HASHES, ROUND_CONSTANTS};
 
-pub fn sha256(input: String) -> [u8; 32] {
+pub fn sha256(input: String) -> H256 {
     let processed = preprocess(input);
-
-    //let mut message_schedule = Vec::<u32>::new();
-    //for i in 0..processed_input_vec.len() / 4 {
-    //    let mut u32_bytes = [0_u8; 4];
-    //    u32_bytes.copy_from_slice(&processed_input_vec[4 * i..4 * i + 4]);
-    //    message_schedule.push(u32::from_be_bytes(u32_bytes));
-    //}
-
-    //let message_schedule = processed_input_vec
-    //    .chunks(4)
-    //    .map(|chunk| {
-    //        let mut u32_bytes = [0_u8; 4];
-    //        u32_bytes.copy_from_slice(chunk);
-    //        u32::from_be_bytes(u32_bytes)
-    //    })
-    //    .collect::<Vec<u32>>();
 
     let mut hashes = HASHES;
     // FOR_EACH CHUNK
@@ -47,16 +30,12 @@ pub fn sha256(input: String) -> [u8; 32] {
     });
 
     let mut digest = [0_u8; 32];
-    digest[0..4].copy_from_slice(&hashes[0].to_be_bytes());
-    digest[4..8].copy_from_slice(&hashes[1].to_be_bytes());
-    digest[8..12].copy_from_slice(&hashes[2].to_be_bytes());
-    digest[12..16].copy_from_slice(&hashes[3].to_be_bytes());
-    digest[16..20].copy_from_slice(&hashes[4].to_be_bytes());
-    digest[20..24].copy_from_slice(&hashes[5].to_be_bytes());
-    digest[24..28].copy_from_slice(&hashes[6].to_be_bytes());
-    digest[28..].copy_from_slice(&hashes[7].to_be_bytes());
-
     digest
+        .array_chunks_mut::<4>()
+        .enumerate()
+        .for_each(|(i, chunk)| chunk.copy_from_slice(&hashes[i].to_be_bytes()));
+
+    H256::new(digest)
 }
 
 fn right_rotate(num: u32, by: usize) -> u32 {
@@ -165,10 +144,6 @@ fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
 mod test {
     use super::*;
 
-    fn slice_to_string(slice: &[u8]) -> String {
-        slice.iter().map(|byte| format!("{:02x}", byte)).collect()
-    }
-
     #[test]
     fn preprocessing() {
         let preprocessed_data = preprocess("hello".to_owned());
@@ -204,32 +179,20 @@ mod test {
     }
 
     #[test]
-    fn slice_to_string_conversion() {
-        let bytes = &[];
-        assert_eq!(slice_to_string(bytes), "");
-
-        let bytes = &[0x22, 0x11, 0xdd, 0xff];
-        assert_eq!(slice_to_string(bytes), "2211ddff");
-
-        let bytes = &[0xa0; 15];
-        assert_eq!(slice_to_string(bytes), "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0");
-    }
-
-    #[test]
     fn encoding() {
         let encoded = sha256(String::from(""));
         assert_eq!(
-            slice_to_string(&encoded),
+            encoded.to_string(),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
         let encoded = sha256(String::from("hello world"));
         assert_eq!(
-            slice_to_string(&encoded),
+            encoded.to_string(),
             "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
         );
         let encoded = sha256(String::from("test data"));
         assert_eq!(
-            slice_to_string(&encoded),
+            encoded.to_string(),
             "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9"
         );
 
@@ -237,7 +200,7 @@ mod test {
             "Do you think that this sentence is definitely longer than 64 bytes?",
         ));
         assert_eq!(
-            slice_to_string(&encoded),
+            encoded.to_string(),
             "fba4ec9f441ffbadbf3a21a9976976f34bf2448702c47279677ab594979a3bb9"
         );
     }

@@ -1,6 +1,7 @@
 [workspace]
 members = [
 	"zgc-blockchain",
+	"zgc-common",
 	"zgc-crypto",
 	"zgc-nodes",
 ]

@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use zgc_common::{Address, H256};
 
 pub struct Blockchain<'a> {
     height2hash: HashMap<usize, &'a str>,
@@ -9,12 +10,12 @@ pub struct Blockchain<'a> {
 
 impl Blockchain<'_> {
     pub fn new() -> Self {
-        let bc = Self {
+        let mut bc = Self {
             height2hash: HashMap::new(),
             hash2block: HashMap::new(),
         };
         bc.insert(Block::genesis());
-        empty
+        bc
     }
 
     pub fn insert(&mut self, block: Block) {
@@ -41,57 +42,7 @@ impl Blockchain<'_> {
     }
 }
 
-pub type Address = Hash<20>;
-pub type H256 = Hash<32>;
-
-#[derive(Deserialize, Serialize, Clone, Copy)]
-pub struct Hash<const N: usize>([u8; N]);
-
-impl<const N: usize> Hash<N> {
-    pub fn from_str(string: &str) -> Result<Self, String> {
-        let mut array = [0_u8; N];
-
-        string
-            .trim_start_matches("0x")
-            .as_bytes()
-            .chunks(2)
-            .enumerate()
-            .for_each(|(i, bytes)| {
-                let parsed = u8::from_str_radix(std::str::from_utf8(bytes).unwrap(), 16)
-                    .expect("input contains invalid data");
-                array[i] = parsed;
-            });
-
-        Ok(Self(array))
-    }
-
-    pub fn to_string(&self) -> String {
-        self.0.iter().map(|byte| format!("{:02x}", byte)).collect()
-    }
-}
-
-//pub struct Blockchain<'a> {
-//    block_finder: BlockFinder<'a>,
-//    difficulty: u8,
-//}
-//
-//impl Blockchain<'_> {
-//    pub fn new_with_difficulty(difficulty: u8) -> Self {
-//        let mut block_finder = BlockFinder::new();
-//        block_finder.insert(Block::genesis());
-//
-//        Self {
-//            block_finder,
-//            difficulty,
-//        }
-//    }
-//
-//    pub fn insert_block(&mut self, block: Block) {
-//        self.block_finder.insert(block)
-//    }
-//}
-
-#[derive(Deserialize, Serialize, Default)]
+#[derive(Deserialize, Serialize)]
 pub struct Block {
     height: usize,
     header: BlockHeader,
@@ -100,18 +51,31 @@ pub struct Block {
 
 impl Block {
     fn genesis() -> Self {
-        Self::default()
+        // TODO derive default?
+        Self {
+            height: 0,
+            header: BlockHeader {
+                created_at: 0,
+                previous_hash: H256::zero(),
+                nonce: 0,
+            },
+            data: TxData {
+                sender: Address::zero(),
+                recipient: Address::zero(),
+                amount: 0,
+            },
+        }
     }
 }
 
-#[derive(Deserialize, Serialize, Default)]
+#[derive(Deserialize, Serialize)]
 pub struct BlockHeader {
     created_at: u64,
     previous_hash: H256,
     nonce: u32,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, Default)]
+#[derive(Deserialize, Serialize, Clone, Copy)]
 pub struct TxData {
     sender: Address,
     recipient: Address,
