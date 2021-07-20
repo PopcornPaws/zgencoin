@@ -165,11 +165,7 @@ fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    // TODO move this to zgc-common (dev-depencency showcase)
-    fn slice_to_string(slice: &[u8]) -> String {
-        slice.iter().map(|byte| format!("{:02x}", byte)).collect()
-    }
+    use zgc_common::slice_to_string;
 
     #[test]
     fn preprocessing() {
