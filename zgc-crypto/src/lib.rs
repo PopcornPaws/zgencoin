@@ -21,7 +21,7 @@ use consts::{HASHES, ROUND_CONSTANTS};
 pub fn sha256(input: String) -> [u8; 32] {
     let processed = preprocess(input);
 
-    let mut hashes = HASHES;
+    let mut hashes = HASHES; // copy trait
     // FOR_EACH CHUNK
     processed.array_chunks::<64>().for_each(|chunk| {
         let scheduled = schedule(chunk);
