@@ -60,6 +60,8 @@ fn preprocess(input: String) -> Vec<u8> {
     let mut input_bytes = input.into_bytes(); // Vec<u8>
     let original_bytes_len = input_bytes.len(); // in bytes!
 
+    input_bytes.reserve(64);
+
     input_bytes.push(0b1000_0000);
     while input_bytes.len() % 64 != 0 {
         input_bytes.push(0_u8)
