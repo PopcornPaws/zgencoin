@@ -22,8 +22,8 @@ pub fn sha256(input: String) -> [u8; 32] {
     let processed = preprocess(input);
 
     let mut hashes = HASHES; // copy trait
-    // FOR_EACH CHUNK
-    processed.array_chunks::<64>().for_each(|chunk| {
+                             // FOR_EACH CHUNK
+    processed.chunks(64).for_each(|chunk| {
         let scheduled = schedule(chunk);
         compress(&mut hashes, &scheduled);
     });
@@ -41,20 +41,24 @@ pub fn sha256(input: String) -> [u8; 32] {
     //digest[20..24].copy_from_slice(&hashes[5].to_be_bytes());
     //digest[24..28].copy_from_slice(&hashes[6].to_be_bytes());
     //digest[28..].copy_from_slice(&hashes[7].to_be_bytes());
-
     digest
 }
 
-fn right_rotate(num: u32, by: usize) -> u32 {
-    let right_shifted = num >> by;
-    let left_shifted = num << (32 - by);
-    right_shifted | left_shifted
+fn right_rotate(num: u32, mut by: usize) -> u32 {
+    by %= 32;
+    if by == 0 {
+        num
+    } else {
+        let right_shifted = num >> by;
+        let left_shifted = num << (32 - by);
+        right_shifted | left_shifted
+    }
 }
 
 fn preprocess(input: String) -> Vec<u8> {
     // as_bytes vs into_bytes
     let mut input_bytes = input.into_bytes(); // Vec<u8>
-    let input_bytes_len = input_bytes.len(); // in bytes!
+    let original_bytes_len = input_bytes.len(); // in bytes!
 
     input_bytes.push(0b1000_0000);
     while input_bytes.len() % 64 != 0 {
@@ -62,24 +66,24 @@ fn preprocess(input: String) -> Vec<u8> {
     }
 
     // original length in bits
-    let original_length_in_bits = (input_bytes_len * 8).to_be_bytes();
+    let original_length_in_bits = (original_bytes_len * 8).to_be_bytes();
     // last 8 bytes
-    let copy_range = input_bytes.len() - 8..input_bytes.len();
+    let last_8_bytes = input_bytes.len() - 8..input_bytes.len();
     // copy the original length (in bits) to the last 64 bits of the padded data
-    input_bytes[copy_range].copy_from_slice(&original_length_in_bits); // panics if lengths are not equal
+    input_bytes[last_8_bytes].copy_from_slice(&original_length_in_bits); // panics if lengths are not equal
 
     input_bytes
 }
 
 fn schedule(chunk_512: &[u8]) -> Vec<u32> {
     //let mut message_schedule = Vec::<u32>::new();
-    //for i in 0..processed_input_vec.len() / 4 {
+    //for i in 0..chunk_512.len() / 4 {
     //    let mut u32_bytes = [0_u8; 4];
-    //    u32_bytes.copy_from_slice(&processed_input_vec[4 * i..4 * i + 4]);
+    //    u32_bytes.copy_from_slice(&chunk_512[4 * i..4 * i + 4]);
     //    message_schedule.push(u32::from_be_bytes(u32_bytes));
     //}
 
-    //let message_schedule = processed_input_vec
+    //let message_schedule = chunk_512
     //    .chunks(4)
     //    .map(|chunk| {
     //        let mut u32_bytes = [0_u8; 4];
@@ -93,7 +97,7 @@ fn schedule(chunk_512: &[u8]) -> Vec<u32> {
         .map(|chunk| u32::from_be_bytes(*chunk))
         .collect::<Vec<u32>>();
 
-    scheduled.reserve_exact(64);
+    scheduled.reserve_exact(48);
 
     for _ in 0..48 {
         scheduled.push(0)
@@ -133,23 +137,23 @@ fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
     for i in 0..64 {
         let rotated_a = right_rotate(a, 2) ^ right_rotate(a, 13) ^ right_rotate(a, 22);
         let rotated_e = right_rotate(e, 6) ^ right_rotate(e, 11) ^ right_rotate(e, 25);
-        let auxiliary_1 = (e & f) ^ ((!e) & g);
-        let auxiliary_2 = h
+        let ch = (e & f) ^ ((!e) & g);
+        let maj = (a & b) ^ (a & c) ^ (b & c);
+        let temp_1 = h
             .wrapping_add(rotated_e)
-            .wrapping_add(auxiliary_1)
+            .wrapping_add(ch)
             .wrapping_add(ROUND_CONSTANTS[i])
             .wrapping_add(scheduled[i]);
-        let auxiliary_3 = (a & b) ^ (a & c) ^ (b & c);
-        let auxiliary_4 = rotated_a.wrapping_add(auxiliary_3);
+        let temp_2 = rotated_a.wrapping_add(maj);
 
         h = g;
         g = f;
         f = e;
-        e = d.wrapping_add(auxiliary_2);
+        e = d.wrapping_add(temp_1);
         d = c;
         c = b;
         b = a;
-        a = auxiliary_2.wrapping_add(auxiliary_4);
+        a = temp_1.wrapping_add(temp_2);
     }
 
     hash_values[0] = hash_values[0].wrapping_add(a);
@@ -196,11 +200,13 @@ mod test {
         assert_eq!(b, 0b_0000_0001_0000_0001_0000_0001_0000_0001_u32);
 
         assert_eq!(right_rotate(1, 7), 1 << 25);
-        assert_eq!(right_rotate(0, 7), 0 << 25);
+        assert_eq!(right_rotate(0, 7), 0);
         assert_eq!(right_rotate(1032, 31), 2064);
         assert_eq!(right_rotate(50000, 31), 100000);
-    }
 
+        assert_eq!(right_rotate(1032, 32), 1032);
+        assert_eq!(right_rotate(2, 33), 1);
+    }
 
     #[test]
     fn encoding() {
