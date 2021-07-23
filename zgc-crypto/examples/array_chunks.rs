@@ -1,5 +1,15 @@
 #![feature(array_chunks)]
 
+// an example to show how array_chunks makes the code
+// easier to read and maintain and leaves less room
+// for error during development
+//
+// to run this example you need to run 
+//
+// cargo run --example array_chunks
+//
+// from the zgc-crypto directory
+
 fn schedule(input: &[u8]) -> Vec<u32> {
     let mut message_schedule = Vec::<u32>::new();
     for i in 0..input.len() / 4 {
