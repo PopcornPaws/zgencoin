@@ -4,7 +4,7 @@
 // easier to read and maintain and leaves less room
 // for error during development
 //
-// to run this example you need to run 
+// to run this example you need to run
 //
 // cargo run --example array_chunks
 //

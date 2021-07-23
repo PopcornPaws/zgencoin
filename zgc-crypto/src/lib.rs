@@ -33,7 +33,8 @@ pub fn sha256(input: String) -> [u8; 32] {
 
     // digest the 8 u32 hash values that were
     // successively modified in the chunk loop
-    // array_chunks_mut gives you a reference to
+    //
+    // array_chunks_mut gives you a mutable reference to
     // a [u8; 4] fixed array in which we can copy
     // the i^th u32 of `hashes` converted into big
     // endian bytes.
