@@ -1,3 +1,4 @@
+// This flag enables the use of array_chunks in nightly mode
 #![feature(array_chunks)]
 // STEP 1 >> Initialization of auxiliary hash variables
 // 1) first 32 bits of the fractional part of the
@@ -8,7 +9,7 @@
 // 1) convert to binary
 // 2) append a single 1 bit
 // 3) pad with 0 until length is a multiple of 512
-// 4) replace last 64 bytes with the input data length
+// 4) replace last 64 bits with the input data length
 // STEP 3 >> for every 512 bit chunk:
 // 1) create a message schedule
 // 2) compression
@@ -20,30 +21,36 @@ use consts::{HASHES, ROUND_CONSTANTS};
 
 pub fn sha256(input: String) -> [u8; 32] {
     let processed = preprocess(input);
-
-    let mut hashes = HASHES; // copy trait
-                             // FOR_EACH CHUNK
+    // since HASHES [u8; 8] is a Copy type (because it's not expensive to copy
+    // 8 u32 numbers) it doesn't get moved out of scope, it is simply copied
+    // into `hashes`
+    let mut hashes = HASHES;
+    // for each chunk, schedule them and compress them
     processed.chunks(64).for_each(|chunk| {
         let scheduled = schedule(chunk);
         compress(&mut hashes, &scheduled);
     });
 
+    // digest the 8 u32 hash values that were
+    // successively modified in the chunk loop
+    // array_chunks_mut gives you a reference to
+    // a [u8; 4] fixed array in which we can copy
+    // the i^th u32 of `hashes` converted into big
+    // endian bytes.
     let mut digest = [0_u8; 32];
     digest
         .array_chunks_mut::<4>()
         .enumerate()
         .for_each(|(i, chunk)| chunk.copy_from_slice(&hashes[i].to_be_bytes()));
-    //digest[0..4].copy_from_slice(&hashes[0].to_be_bytes());
-    //digest[4..8].copy_from_slice(&hashes[1].to_be_bytes());
-    //digest[8..12].copy_from_slice(&hashes[2].to_be_bytes());
-    //digest[12..16].copy_from_slice(&hashes[3].to_be_bytes());
-    //digest[16..20].copy_from_slice(&hashes[4].to_be_bytes());
-    //digest[20..24].copy_from_slice(&hashes[5].to_be_bytes());
-    //digest[24..28].copy_from_slice(&hashes[6].to_be_bytes());
-    //digest[28..].copy_from_slice(&hashes[7].to_be_bytes());
+
     digest
 }
 
+/// Right rotates a 32 bit unsigned integer by a given number.
+///
+/// Note, that without the modulo division and the if-else logic, the function
+/// would panic at runtime if we wanted to shift the number by a value greater
+/// than or equal to 32.
 fn right_rotate(num: u32, mut by: usize) -> u32 {
     by %= 32;
     if by == 0 {
@@ -55,13 +62,26 @@ fn right_rotate(num: u32, mut by: usize) -> u32 {
     }
 }
 
+/// Preprocesses the input data.
+///
+/// A String type is a dynamic type allocated on the heap,
+/// therefore it doesn't implement the Copy trait. This means,
+/// that if the input is passed to this function by value,
+/// it is moved into the scope of this function and cannot
+/// be used anymore in the parent function.
 fn preprocess(input: String) -> Vec<u8> {
-    // as_bytes vs into_bytes
+    // as_bytes(&self) vs into_bytes(self)
+    // as_bytes -> input is passed by reference so it doesn't get moved out of
+    // scope
+    // into_bytes -> input is passed by value so it does get moved out of scope
+    // and cannot be used afterwards
     let mut input_bytes = input.into_bytes(); // Vec<u8>
     let original_bytes_len = input_bytes.len(); // in bytes!
 
+    // reserve some memory for the Vec<u8> (dynamically allocated on the heap)
+    // so that it doesn't reallocate every time it runs out of available space
+    // when we push to it consecutively
     input_bytes.reserve(64);
-
     input_bytes.push(0b1000_0000);
     while input_bytes.len() % 64 != 0 {
         input_bytes.push(0_u8)
@@ -77,30 +97,22 @@ fn preprocess(input: String) -> Vec<u8> {
     input_bytes
 }
 
+/// Performs the scheduling step.
+///
+/// In every chunk loop, a 512 bit long byte stream is converted
+/// into u32 words which are then padded by 0 to have length 64.
+///
+/// Thereafter, a bitwise operation loop is performed on the padded
+/// vector.
 fn schedule(chunk_512: &[u8]) -> Vec<u32> {
-    //let mut message_schedule = Vec::<u32>::new();
-    //for i in 0..chunk_512.len() / 4 {
-    //    let mut u32_bytes = [0_u8; 4];
-    //    u32_bytes.copy_from_slice(&chunk_512[4 * i..4 * i + 4]);
-    //    message_schedule.push(u32::from_be_bytes(u32_bytes));
-    //}
-
-    //let message_schedule = chunk_512
-    //    .chunks(4)
-    //    .map(|chunk| {
-    //        let mut u32_bytes = [0_u8; 4];
-    //        u32_bytes.copy_from_slice(chunk);
-    //        u32::from_be_bytes(u32_bytes)
-    //    })
-    //    .collect::<Vec<u32>>();
-    debug_assert_eq!(chunk_512.len(), 64, "chunk has to be 64 bytes long");
     let mut scheduled = chunk_512
         .array_chunks::<4>()
         .map(|chunk| u32::from_be_bytes(*chunk))
         .collect::<Vec<u32>>();
 
+    // reserve additional space here as well to
+    // avoid reallocations on the heap
     scheduled.reserve_exact(48);
-
     for _ in 0..48 {
         scheduled.push(0)
     }
@@ -126,6 +138,10 @@ fn schedule(chunk_512: &[u8]) -> Vec<u32> {
     scheduled
 }
 
+/// Performs the compression step.
+///
+/// In every chunk loop, the hash values are updated in place
+/// using the scheduled values generated in [`schedule`].
 fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
     let mut a = hash_values[0];
     let mut b = hash_values[1];
@@ -135,7 +151,7 @@ fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
     let mut f = hash_values[5];
     let mut g = hash_values[6];
     let mut h = hash_values[7];
-    // NOTE Compression
+
     for i in 0..64 {
         let rotated_a = right_rotate(a, 2) ^ right_rotate(a, 13) ^ right_rotate(a, 22);
         let rotated_e = right_rotate(e, 6) ^ right_rotate(e, 11) ^ right_rotate(e, 25);
@@ -170,8 +186,24 @@ fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use zgc_common::slice_to_string;
+    use super::*; // bring everything from the level above into scope
+
+    /// Formats a byte stream into a hexadecimal `String` representation.
+    fn slice_to_string(slice: &[u8]) -> String {
+        slice.iter().map(|byte| format!("{:02x}", byte)).collect()
+    }
+
+    #[test]
+    fn slice_to_string_conversion() {
+        let bytes = &[];
+        assert_eq!(slice_to_string(bytes), "");
+
+        let bytes = &[0x22, 0, 0xdd, 0x0f];
+        assert_eq!(slice_to_string(bytes), "2200dd0f");
+
+        let bytes = &[0xa0; 15];
+        assert_eq!(slice_to_string(bytes), "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0");
+    }
 
     #[test]
     fn preprocessing() {

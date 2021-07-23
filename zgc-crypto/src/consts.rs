@@ -1,12 +1,3 @@
-//pub const HASH_0: u32 = 0x6a09e667;
-//pub const HASH_1: u32 = 0xbb67ae85;
-//pub const HASH_2: u32 = 0x3c6ef372;
-//pub const HASH_3: u32 = 0xa54ff53a;
-//pub const HASH_4: u32 = 0x510e527f;
-//pub const HASH_5: u32 = 0x9b05688c;
-//pub const HASH_6: u32 = 0x1f83d9ab;
-//pub const HASH_7: u32 = 0x5be0cd19;
-
 /// Contains the first 32 bits of the fractional part of the
 /// square roots of the first 8 primes.
 ///// ```
