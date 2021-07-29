@@ -103,18 +103,3 @@ impl TxData {
         self.amount
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    #[test]
-    fn address() {
-        let address_str = "0123456789abcdeffedcba9876543210aabbccdd";
-        let address = Address::from_str(address_str).expect("failed to parse address string");
-        assert_eq!(address.to_string(), address_str);
-
-        let address_str_0x = String::from("0x") + address_str;
-        let address = Address::from_str(&address_str_0x).expect("failed to parse address string");
-        assert_eq!(address.to_string(), address_str);
-    }
-}

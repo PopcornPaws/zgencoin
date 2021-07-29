@@ -35,7 +35,7 @@ pub fn sha256(input: String) -> H256 {
         .enumerate()
         .for_each(|(i, chunk)| chunk.copy_from_slice(&hashes[i].to_be_bytes()));
 
-    H256::new(digest)
+    H256::from(digest)
 }
 
 fn right_rotate(num: u32, by: usize) -> u32 {
