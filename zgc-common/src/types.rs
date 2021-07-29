@@ -27,6 +27,7 @@ impl<const N: usize> Hash<N> {
             .try_for_each(|(i, bytes)| -> Result<(), String> {
                 // unwrap is fine here because the input &str is ensured to
                 // contain valid utf-8
+                // NOTE there might be a faster way but this way it's more readable and safe
                 let parsed_str = std::str::from_utf8(bytes).unwrap();
                 let parsed_byte = u8::from_str_radix(parsed_str, 16)
                     .map_err(|e| format!("cannot parse into hexadecimal: {}", e))?;
@@ -147,6 +148,9 @@ mod test {
 
         let invalid_hex_str = "563fgdea"; // 'gd' cannot be parsed as hex
         let hash = Hash::<4>::try_from_str(invalid_hex_str);
-        assert_eq!(hash, Err("cannot parse into hexadecimal: invalid digit found in string".to_owned()));
+        assert_eq!(
+            hash,
+            Err("cannot parse into hexadecimal: invalid digit found in string".to_owned())
+        );
     }
 }
