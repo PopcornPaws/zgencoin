@@ -1,15 +1,15 @@
+// This flag enables the use of array_chunks in nightly mode
 #![feature(array_chunks)]
-use zgc_common::H256;
-// STEP 1 >> Preprocessing
-// 1) convert to binary
-// 2) append a single 1 bit
-// 3) pad with 0 until length is a multiple of 512
-// 4) replace last 64 bytes with the input data length
-// STEP 2 >> Initialization of auxiliary hash variables
+// STEP 1 >> Initialization of auxiliary hash variables
 // 1) first 32 bits of the fractional part of the
 //    square root of the first 8 primes (2, 3, 5, 7, 11, 13, 17, 19)
 // 2) first 32 bits of the fractional part of the
 //    cubic root of the first 64 primes (2, 3, 5, 7, 11, ..., 311)
+// STEP 2 >> Preprocessing
+// 1) convert to binary
+// 2) append a single 1 bit
+// 3) pad with 0 until length is a multiple of 512
+// 4) replace last 64 bits with the input data length
 // STEP 3 >> for every 512 bit chunk:
 // 1) create a message schedule
 // 2) compression
@@ -18,17 +18,27 @@ use zgc_common::H256;
 
 mod consts;
 use consts::{HASHES, ROUND_CONSTANTS};
+use zgc_common::H256;
 
 pub fn sha256(input: String) -> H256 {
     let processed = preprocess(input);
-
+    // since HASHES [u8; 8] is a Copy type (because it's not expensive to copy
+    // 8 u32 numbers) it doesn't get moved out of scope, it is simply copied
+    // into `hashes`
     let mut hashes = HASHES;
-    // FOR_EACH CHUNK
-    processed.array_chunks::<64>().for_each(|chunk| {
+    // for each chunk, schedule them and compress them
+    processed.chunks(64).for_each(|chunk| {
         let scheduled = schedule(chunk);
         compress(&mut hashes, &scheduled);
     });
 
+    // digest the 8 u32 hash values that were
+    // successively modified in the chunk loop
+    //
+    // array_chunks_mut gives you a mutable reference to
+    // a [u8; 4] fixed array in which we can copy
+    // the i^th u32 of `hashes` converted into big
+    // endian bytes.
     let mut digest = [0_u8; 32];
     digest
         .array_chunks_mut::<4>()
@@ -38,41 +48,73 @@ pub fn sha256(input: String) -> H256 {
     H256::from(digest)
 }
 
-fn right_rotate(num: u32, by: usize) -> u32 {
-    let right_shifted = num >> by;
-    let left_shifted = num << (32 - by);
-    right_shifted | left_shifted
+/// Right rotates a 32 bit unsigned integer by a given number.
+///
+/// Note, that without the modulo division and the if-else logic, the function
+/// would panic at runtime if we wanted to shift the number by a value greater
+/// than or equal to 32.
+fn right_rotate(num: u32, mut by: usize) -> u32 {
+    by %= 32;
+    if by == 0 {
+        num
+    } else {
+        let right_shifted = num >> by;
+        let left_shifted = num << (32 - by);
+        right_shifted | left_shifted
+    }
 }
 
+/// Preprocesses the input data.
+///
+/// A String type is a dynamic type allocated on the heap,
+/// therefore it doesn't implement the Copy trait. This means,
+/// that if the input is passed to this function by value,
+/// it is moved into the scope of this function and cannot
+/// be used anymore in the parent function.
 fn preprocess(input: String) -> Vec<u8> {
-    // as_bytes vs into_bytes
+    // as_bytes(&self) vs into_bytes(self)
+    // as_bytes -> input is passed by reference so it doesn't get moved out of
+    // scope
+    // into_bytes -> input is passed by value so it does get moved out of scope
+    // and cannot be used afterwards
     let mut input_bytes = input.into_bytes(); // Vec<u8>
-    let original_length = input_bytes.len(); // in bytes!
+    let original_bytes_len = input_bytes.len(); // in bytes!
 
+    // reserve some memory for the Vec<u8> (dynamically allocated on the heap)
+    // so that it doesn't reallocate every time it runs out of available space
+    // when we push to it consecutively
+    input_bytes.reserve(64);
     input_bytes.push(0b1000_0000);
     while input_bytes.len() % 64 != 0 {
         input_bytes.push(0_u8)
     }
 
     // original length in bits
-    let original_length_in_bits = (original_length * 8).to_be_bytes();
+    let original_length_in_bits = (original_bytes_len * 8).to_be_bytes();
     // last 8 bytes
-    let copy_range = input_bytes.len() - 8..input_bytes.len();
+    let last_8_bytes = input_bytes.len() - 8..input_bytes.len();
     // copy the original length (in bits) to the last 64 bits of the padded data
-    input_bytes[copy_range].copy_from_slice(&original_length_in_bits); // panics if lengths are not equal
+    input_bytes[last_8_bytes].copy_from_slice(&original_length_in_bits); // panics if lengths are not equal
 
     input_bytes
 }
 
+/// Performs the scheduling step.
+///
+/// In every chunk loop, a 512 bit long byte stream is converted
+/// into u32 words which are then padded by 0 to have length 64.
+///
+/// Thereafter, a bitwise operation loop is performed on the padded
+/// vector.
 fn schedule(chunk_512: &[u8]) -> Vec<u32> {
-    debug_assert_eq!(chunk_512.len(), 64, "chunk has to be 64 bytes long");
     let mut scheduled = chunk_512
         .array_chunks::<4>()
         .map(|chunk| u32::from_be_bytes(*chunk))
         .collect::<Vec<u32>>();
 
-    scheduled.reserve_exact(64);
-
+    // reserve additional space here as well to
+    // avoid reallocations on the heap
+    scheduled.reserve_exact(48);
     for _ in 0..48 {
         scheduled.push(0)
     }
@@ -98,6 +140,10 @@ fn schedule(chunk_512: &[u8]) -> Vec<u32> {
     scheduled
 }
 
+/// Performs the compression step.
+///
+/// In every chunk loop, the hash values are updated in place
+/// using the scheduled values generated in [`schedule`].
 fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
     let mut a = hash_values[0];
     let mut b = hash_values[1];
@@ -107,27 +153,27 @@ fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
     let mut f = hash_values[5];
     let mut g = hash_values[6];
     let mut h = hash_values[7];
-    // NOTE Compression
+
     for i in 0..64 {
         let rotated_a = right_rotate(a, 2) ^ right_rotate(a, 13) ^ right_rotate(a, 22);
         let rotated_e = right_rotate(e, 6) ^ right_rotate(e, 11) ^ right_rotate(e, 25);
-        let auxiliary_1 = (e & f) ^ ((!e) & g);
-        let auxiliary_2 = h
+        let ch = (e & f) ^ ((!e) & g);
+        let maj = (a & b) ^ (a & c) ^ (b & c);
+        let temp_1 = h
             .wrapping_add(rotated_e)
-            .wrapping_add(auxiliary_1)
+            .wrapping_add(ch)
             .wrapping_add(ROUND_CONSTANTS[i])
             .wrapping_add(scheduled[i]);
-        let auxiliary_3 = (a & b) ^ (a & c) ^ (b & c);
-        let auxiliary_4 = rotated_a.wrapping_add(auxiliary_3);
+        let temp_2 = rotated_a.wrapping_add(maj);
 
         h = g;
         g = f;
         f = e;
-        e = d.wrapping_add(auxiliary_2);
+        e = d.wrapping_add(temp_1);
         d = c;
         c = b;
         b = a;
-        a = auxiliary_2.wrapping_add(auxiliary_4);
+        a = temp_1.wrapping_add(temp_2);
     }
 
     hash_values[0] = hash_values[0].wrapping_add(a);
@@ -142,7 +188,7 @@ fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use super::*; // bring everything from the level above into scope
 
     #[test]
     fn preprocessing() {
@@ -173,9 +219,11 @@ mod test {
         assert_eq!(b, 0b_0000_0001_0000_0001_0000_0001_0000_0001_u32);
 
         assert_eq!(right_rotate(1, 7), 1 << 25);
-        assert_eq!(right_rotate(0, 7), 0 << 25);
+        assert_eq!(right_rotate(0, 7), 0);
         assert_eq!(right_rotate(1032, 31), 2064);
         assert_eq!(right_rotate(50000, 31), 100000);
+        assert_eq!(right_rotate(1032, 32), 1032);
+        assert_eq!(right_rotate(2, 33), 1);
     }
 
     #[test]

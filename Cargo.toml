@@ -6,11 +6,19 @@ members = [
 	"zgc-nodes",
 ]
 
+## Compilation optimization profiles
+# for faster compilation in the dev (cargo check and build) phase the compiler doesn't optimize
+# anything if opt-level is 0 (default value is 0)
 [profile.dev]
 opt-level = 0
 
+# for faster compilation in the test (cargo t) phase the compiler doesn't optimize
+# anything if opt-level is 0 (default value is 0)
 [profile.test]
-opt-level = 3
+opt-level = 3 
 
+# for the best performance, the compiler will perform max level (3)
+# optimization in release mode (cargo build --release) which will increase
+# compilation time but result in faster code (default value is 3)
 [profile.release]
 opt-level = 3
