@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use zgc_common::{Address, H256};
+use zgc_crypto::{Hasher, Sha256};
 
 pub struct Blockchain<'a> {
     height2hash: HashMap<usize, &'a str>,
@@ -9,18 +11,31 @@ pub struct Blockchain<'a> {
 }
 
 impl Blockchain<'_> {
-    pub fn new() -> Self {
+    pub fn new<T>(hasher: &T) -> Self
+    where
+        T: Hasher,
+    {
         let mut bc = Self {
             height2hash: HashMap::new(),
             hash2block: HashMap::new(),
         };
-        bc.insert(Block::genesis());
+        bc.insert(Block::genesis(), hasher);
         bc
     }
 
-    pub fn insert(&mut self, block: Block) {
-        // TODO use hashing function here
-        let hash = Box::leak(Box::new(String::from("Some sha256 hash")));
+    pub fn insert<T>(&mut self, block: Block, hasher: &T)
+    where
+        T: Hasher,
+    {
+        // expect/unwrap is fine here because the derived
+        // Serialize will (hopefully) never fail
+        let hash = Box::leak(Box::new(
+            hasher
+                .digest(
+                    serde_json::to_string(&block.header).expect("failed to serialize block header"),
+                )
+                .to_string(),
+        ));
         self.height2hash.insert(block.height, hash);
         self.hash2block.insert(hash, block);
     }
@@ -60,6 +75,7 @@ impl Block {
                 nonce: 0,
             },
             data: TxData {
+                signature: H256::from([0u8; 32]),
                 sender: Address::zero(),
                 recipient: Address::zero(),
                 amount: 0,
@@ -77,29 +93,69 @@ pub struct BlockHeader {
 
 #[derive(Deserialize, Serialize, Clone, Copy)]
 pub struct TxData {
+    signature: H256,
     sender: Address,
     recipient: Address,
-    amount: usize,
+    amount: u64,
 }
 
-impl TxData {
-    pub fn new(sender: Address, recipient: Address, amount: usize) -> Self {
+pub struct Wallet {
+    public_key: Address,
+}
+
+impl Wallet {
+    pub fn new(private_key: String) -> Self {
         Self {
-            sender,
-            recipient,
-            amount,
+            public_key: keygen(private_key),
         }
     }
 
-    pub fn sender(&self) -> &Address {
-        &self.sender
-    }
+    pub fn new_transaction(
+        &self,
+        amount: u64,
+        recipient: Address,
+        private_key: String,
+    ) -> Result<TxData, String> {
+        if self.public_key != keygen(private_key) {
+            return Err("Wrong private key provided, cannot sign transaction".to_owned());
+        }
 
-    pub fn recipient(&self) -> &Address {
-        &self.recipient
-    }
+        let duration = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| format!("system time error: {}", e))?;
 
-    pub fn amount(&self) -> usize {
-        self.amount
+        let tx_header = format!(
+            "{},{:?},{:?},{}",
+            amount,
+            self.public_key,
+            recipient,
+            duration.as_millis()
+        );
+
+        let hasher = Sha256::new();
+
+        Ok(TxData {
+            signature: hasher.digest(tx_header),
+            sender: self.public_key,
+            recipient,
+            amount,
+        })
     }
+}
+
+fn keygen(private_key: String) -> Address {
+    let hasher = Sha256::new();
+    let hash_result = hasher.digest(private_key).to_string();
+    // unwrap is fine because we know the length of hash_result
+    // and that it will always contain valid hex data
+    Address::try_from_str(&hash_result[..40]).unwrap()
+}
+
+#[test]
+fn test_keygen() {
+    let address = keygen(String::from("random2private#key"));
+    assert_eq!(
+        address.to_string(),
+        "9ccf1c4cf49cb403f61aafff4c37a9b5a8f660cb"
+    );
 }
