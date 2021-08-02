@@ -4,22 +4,31 @@ use async_std::net::TcpStream;
 use async_std::prelude::*;
 use std::collections::BTreeMap;
 
-pub struct Node<'a> {
-    peers: Vec<TcpStream>,
-    blockchain: Blockchain<'a>,
-    tx_pool: BTreeMap<usize, TxData>,
+pub type TxPool = BTreeMap<u64, TxData>; // tx amount - tx data
+
+pub enum NodeStatus<'a> {
+    Syncing,
+    UpToDate,
+    Forked(Vec<Blockchain<'a>>),
 }
 
-impl Node<'_> {
+
+pub struct Node<'a, 'b> {
+    peers: Vec<TcpStream>,
+    blockchain: Blockchain<'a>,
+    status: NodeStatus<'b>,
+}
+
+impl Node<'_, '_> {
     pub fn new(peers: Vec<TcpStream>) -> Self {
         Self {
             peers,
             blockchain: Blockchain::new(),
-            tx_pool: BTreeMap::new(),
+            status: NodeStatus::Syncing,
         }
     }
 
-    pub async fn sync(&mut self) -> Result<(), String> {
+    pub async fn gossip(&mut self) -> Result<(), String> {
         // TODO choose peer randomly
         // rng.gen_range(0, self.peers.len())
         self.peers[0]
@@ -37,6 +46,10 @@ impl Node<'_> {
             .await
             .map_err(|e| format!("failed to read block data: {}", e))?;
 
+        todo!();
+    }
+
+    pub async fn sync(&mut self) -> Result<(), String> {
         todo!();
     }
 }
