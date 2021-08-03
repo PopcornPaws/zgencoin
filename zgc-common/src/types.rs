@@ -1,4 +1,7 @@
-#[derive(Debug, PartialEq, Eq)]
+use std::convert::TryFrom;
+use std::convert::TryInto;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Hash<const N: usize>([u8; N]);
 
 impl<const N: usize> Hash<N> {
@@ -36,6 +39,22 @@ impl<const N: usize> Hash<N> {
 
     pub fn new(bytes: [u8; N]) -> Self {
         Self(bytes)
+    }
+
+    pub fn zero() -> Self {
+        Self([0_u8; N])
+    }
+}
+
+impl<const N: usize> TryFrom<&[u8]> for Hash<N> {
+    type Error = String;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let result: [u8; N] = bytes
+            .try_into()
+            .map_err(|_| format!("input (&[u8]) has {}, expected {}", bytes.len(), N))?;
+
+        Ok(Self(result))
     }
 }
 
