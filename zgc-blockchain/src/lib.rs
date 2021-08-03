@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use zgc_common::{Address, H256};
 use zgc_crypto::{Hasher, Sha256};
@@ -11,10 +10,7 @@ pub struct Blockchain<'a> {
 }
 
 impl Blockchain<'_> {
-    pub fn new<T>(hasher: &T) -> Self
-    where
-        T: Hasher,
-    {
+    pub fn new(hasher: &impl Hasher) -> Self {
         let mut bc = Self {
             height2hash: HashMap::new(),
             hash2block: HashMap::new(),
@@ -23,10 +19,7 @@ impl Blockchain<'_> {
         bc
     }
 
-    pub fn insert<T>(&mut self, block: Block, hasher: &T)
-    where
-        T: Hasher,
-    {
+    pub fn insert(&mut self, block: Block, hasher: &impl Hasher) {
         // expect/unwrap is fine here because the derived
         // Serialize will (hopefully) never fail
         let hash = Box::leak(Box::new(
@@ -116,20 +109,13 @@ impl Wallet {
         recipient: Address,
         private_key: String,
     ) -> Result<TxData, String> {
-        if self.public_key != keygen(private_key) {
+        if self.public_key != keygen(private_key.clone()) {
             return Err("Wrong private key provided, cannot sign transaction".to_owned());
         }
 
-        let duration = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| format!("system time error: {}", e))?;
-
         let tx_header = format!(
             "{},{:?},{:?},{}",
-            amount,
-            self.public_key,
-            recipient,
-            duration.as_millis()
+            amount, self.public_key, recipient, private_key
         );
 
         let hasher = Sha256::new();
