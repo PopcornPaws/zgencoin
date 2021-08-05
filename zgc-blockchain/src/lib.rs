@@ -39,7 +39,7 @@ impl Blockchain<'_> {
 
     pub fn find_height(&self, height: usize) -> Option<&Block> {
         if let Some(hash) = self.height2hash.get(&height) {
-            self.hash2block.get(*hash)
+            self.hash2block.get(hash)
         } else {
             None
         }
