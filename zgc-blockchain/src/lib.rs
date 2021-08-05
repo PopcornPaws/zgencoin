@@ -46,11 +46,11 @@ impl Blockchain<'_> {
     }
 
     pub fn last(&self) -> Option<&Block> {
-        self.find_height(self.hash2block.len())
+        self.find_height(self.hash2block.len() - 1)
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 pub struct Block {
     height: usize,
     header: BlockHeader,
@@ -68,7 +68,7 @@ impl Block {
                 nonce: 0,
             },
             data: TxData {
-                signature: H256::from([0u8; 32]),
+                signature: H256::zero(),
                 sender: Address::zero(),
                 recipient: Address::zero(),
                 amount: 0,
@@ -77,14 +77,14 @@ impl Block {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 pub struct BlockHeader {
     created_at: u64,
     previous_hash: H256,
     nonce: u32,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default)]
 pub struct TxData {
     signature: H256,
     sender: Address,

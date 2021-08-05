@@ -30,21 +30,6 @@ impl<const N: usize> Hash<N> {
                 *byte = parsed_byte;
                 Ok(())
             })?;
-        //trimmed_string
-        //    .as_bytes()
-        //    .chunks(2)
-        //    .enumerate()
-        //    .try_for_each(|(i, bytes)| -> Result<(), String> {
-        //        // unwrap is fine here because the input &str is ensured to
-        //        // contain valid utf-8
-        //        // NOTE there might be a faster way but this way it's more readable and safe
-        //        let parsed_str = std::str::from_utf8(bytes).unwrap();
-        //        let parsed_byte = u8::from_str_radix(parsed_str, 16)
-        //            .map_err(|e| format!("cannot parse into hexadecimal: {}", e))?;
-        //        array[i] = parsed_byte;
-        //        Ok(())
-        //    })?;
-
         Ok(Self(array))
     }
 
@@ -54,6 +39,16 @@ impl<const N: usize> Hash<N> {
 
     pub fn zero() -> Self {
         Self([0_u8; N])
+    }
+
+    pub fn new(bytes: [u8; N]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl<const N: usize> Default for Hash<N> {
+    fn default() -> Self {
+        Self::zero()
     }
 }
 
