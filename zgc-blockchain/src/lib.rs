@@ -50,7 +50,7 @@ impl Blockchain<'_> {
     }
 }
 
-#[derive(Deserialize, Serialize, Default)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub struct Block {
     height: usize,
     header: BlockHeader,
@@ -77,14 +77,19 @@ impl Block {
     }
 }
 
-#[derive(Deserialize, Serialize, Default)]
+//#[test]
+//fn default_block() {
+//    assert_eq!(Block::genesis(), Block::default());
+//}
+
+#[derive(Deserialize, Serialize, Default, Eq, PartialEq, Debug)]
 pub struct BlockHeader {
     created_at: u64,
     previous_hash: H256,
     nonce: u32,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, Default)]
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TxData {
     signature: H256,
     sender: Address,
