@@ -7,18 +7,84 @@ pub struct Blockchain<'a> {
     hash2block: HashMap<&'a str, Block>,
 }
 
-struct Block {
-    heigth: usize,
+impl Blockchain<'_> {
+    pub fn new(hasher: &impl Hasher) -> Self {
+        let mut bc = Self {
+            height2hash: HashMap::new(),
+            hash2block: HashMap::new(),
+        };
+        bc.insert(Block::genesis(), hasher);
+        bc
+    }
+
+    pub fn insert(&mut self, block: Block, hasher: &impl Hasher) {
+        let header_string = format!(
+            "{},{:?},{}",
+            block.header.created_at, block.header.previous_hash, block.header.nonce
+        );
+
+        let hash = Box::leak(Box::new(hasher.digest(header_string).to_string()));
+
+        self.height2hash.insert(block.height, hash);
+        self.hash2block.insert(hash, block);
+    }
+
+    pub fn find_hash(&self, hash: &str) -> Option<&Block> {
+        self.hash2block.get(hash)
+    }
+
+    pub fn find_height(&self, height: usize) -> Option<&Block> {
+        if let Some(hash) = self.height2hash.get(&height) {
+            self.hash2block.get(hash)
+        } else {
+            None
+        }
+    }
+
+    pub fn last(&self) -> Option<&Block> {
+        self.find_height(self.hash2block.len() - 1)
+    }
+}
+
+#[derive(Default, Debug, PartialEq, Eq)]
+pub struct Block {
+    height: usize,
     header: BlockHeader,
     data: TxData,
 }
 
+impl Block {
+    fn genesis() -> Self {
+        Block {
+            height: 0,
+            header: BlockHeader {
+                created_at: 0,
+                previous_hash: H256::zero(),
+                nonce: 0,
+            },
+            data: TxData {
+                signature: H256::zero(),
+                sender: Address::zero(),
+                recipient: Address::zero(),
+                amount: 0,
+            },
+        }
+    }
+}
+
+#[test]
+fn genesis_default() {
+    assert_eq!(Block::genesis(), Block::default());
+}
+
+#[derive(Default, Debug, PartialEq, Eq)]
 struct BlockHeader {
     created_at: u64,
     previous_hash: H256,
     nonce: u32,
 }
 
+#[derive(Default, Debug, PartialEq, Eq)]
 pub struct TxData {
     signature: H256,
     sender: Address,

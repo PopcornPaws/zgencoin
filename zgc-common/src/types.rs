@@ -46,6 +46,12 @@ impl<const N: usize> Hash<N> {
     }
 }
 
+impl<const N: usize> Default for Hash<N> {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
 impl<const N: usize> TryFrom<&[u8]> for Hash<N> {
     type Error = String;
 
