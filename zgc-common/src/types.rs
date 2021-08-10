@@ -80,8 +80,8 @@ impl<const N: usize> Serialize for Hash<N> {
     where
         S: Serializer,
     {
-        //serializer.serialize_str(&self.to_string())
-        serializer.serialize_bytes(&self.0)
+        serializer.serialize_str(&self.to_string())
+        //serializer.serialize_bytes(&self.0)
     }
 }
 
@@ -90,8 +90,8 @@ impl<'de, const N: usize> Deserialize<'de> for Hash<N> {
     where
         D: Deserializer<'de>,
     {
-        //deserializer.deserialize_str(HashVisitor::<N>)
-        deserializer.deserialize_bytes(HashVisitor::<N>)
+        deserializer.deserialize_str(HashVisitor::<N>)
+        //deserializer.deserialize_bytes(HashVisitor::<N>)
     }
 }
 
@@ -104,8 +104,9 @@ impl<'de, const N: usize> Visitor<'de> for HashVisitor<N> {
         write!(f, "a byte array with length {}", N)
     }
 
-    fn visit_bytes<T: serde::de::Error>(self, value: &[u8]) -> Result<Self::Value, T> {
-        let result = Self::Value::try_from(value)
+    //fn visit_bytes<T: serde::de::Error>(self, value: &[u8]) -> Result<Self::Value, T> {
+    fn visit_str<T: serde::de::Error>(self, value: &str) -> Result<Self::Value, T> {
+        let result = Self::Value::try_from_str(value)
             .map_err(|e| T::custom(format!("Deserialization error: {:?}", e)))?;
         Ok(result)
     }
@@ -124,12 +125,16 @@ mod test {
     #[test]
     fn serde_tests() {
         let hash = Hash::<4>::from(&[0, 2, 0xfd, 0xa0]);
-        let expected = &[0, 2, 0xfd, 0xa0];
-        serde_test::assert_tokens(&hash, &[serde_test::Token::BorrowedBytes(expected)]);
+        //let expected = &[0, 2, 0xfd, 0xa0];
+        //serde_test::assert_tokens(&hash, &[serde_test::Token::BorrowedBytes(expected)]);
+        let expected = "0002fda0";
+        serde_test::assert_tokens(&hash, &[serde_test::Token::String(expected)]);
 
         let hash: Hash<8> = [0xff, 0xd9, 0xcc, 7, 0, 2, 0xfd, 0xa0].into();
-        let expected = &[0xff, 0xd9, 0xcc, 7, 0, 2, 0xfd, 0xa0];
-        serde_test::assert_tokens(&hash, &[serde_test::Token::BorrowedBytes(expected)]);
+        //let expected = &[0xff, 0xd9, 0xcc, 7, 0, 2, 0xfd, 0xa0];
+        //serde_test::assert_tokens(&hash, &[serde_test::Token::BorrowedBytes(expected)]);
+        let expected = "ffd9cc070002fda0";
+        serde_test::assert_tokens(&hash, &[serde_test::Token::String(expected)]);
     }
 
     #[test]
