@@ -1,3 +1,5 @@
+use serde::de::Visitor;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryFrom;
 use std::convert::TryInto;
 
@@ -46,6 +48,50 @@ impl<const N: usize> Hash<N> {
     }
 }
 
+impl<const N: usize> Serialize for Hash<N> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+        //serializer.serialize_bytes(&self.0)
+    }
+}
+
+impl<'de, const N: usize> Deserialize<'de> for Hash<N> {
+    fn deserialize<D>(deserializer: D) -> Result<Hash<N>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(HashVisitor::<N>)
+        //deserializer.deserialize_bytes(HashVisitor::<N>)
+    }
+}
+
+struct HashVisitor<const N: usize>;
+
+impl<'de, const N: usize> Visitor<'de> for HashVisitor<N> {
+    type Value = Hash<N>;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "a String slice")
+    }
+
+    //fn visit_bytes<T: serde::de::Error>(self, value: &[u8]) -> Result<Self::Value, T> {
+    //    let result = Self::Value::try_from(value)
+    //        .map_err(|e| T::custom(format!("Deserialization error: {:?}", e)))?;
+
+    //    Ok(result)
+    //}
+
+    fn visit_str<T: serde::de::Error>(self, value: &str) -> Result<Self::Value, T> {
+        let result = Self::Value::try_from_str(value)
+            .map_err(|e| T::custom(format!("Deserialization error: {:?}", e)))?;
+
+        Ok(result)
+    }
+}
+
 impl<const N: usize> Default for Hash<N> {
     fn default() -> Self {
         Self::zero()
@@ -67,6 +113,21 @@ impl<const N: usize> TryFrom<&[u8]> for Hash<N> {
 #[cfg(test)]
 mod test {
     use super::Hash;
+
+    #[test]
+    fn serde_tests() {
+        let hash = Hash::<4>::new([0, 2, 0xfd, 0xa0]);
+        //let expected = "0002fda0";
+        //serde_test::assert_tokens(&hash, &[serde_test::Token::String(expected)]);
+        let expected = &[0, 2, 0xfd, 0xa0];
+        serde_test::assert_tokens(&hash, &[serde_test::Token::BorrowedBytes(expected)]);
+
+        let hash = Hash::<8>::new([0xff, 0xd9, 0xcc, 7, 0, 2, 0xfd, 0xa0]);
+        //let expected = "ffd9cc070002fda0";
+        //serde_test::assert_tokens(&hash, &[serde_test::Token::String(expected)]);
+        let expected = &[0xff, 0xd9, 0xcc, 7, 0, 2, 0xfd, 0xa0];
+        serde_test::assert_tokens(&hash, &[serde_test::Token::BorrowedBytes(expected)]);
+    }
 
     #[test]
     fn address() {

@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use zgc_common::{Address, H256};
 use zgc_crypto::{Hasher, Sha256};
 
+use serde::{Deserialize, Serialize};
+
 pub struct Blockchain<'a> {
     height2hash: HashMap<usize, &'a str>,
     hash2block: HashMap<&'a str, Block>,
@@ -46,7 +48,7 @@ impl Blockchain<'_> {
     }
 }
 
-#[derive(Default, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq)]
 pub struct Block {
     height: usize,
     header: BlockHeader,
@@ -77,14 +79,14 @@ fn genesis_default() {
     assert_eq!(Block::genesis(), Block::default());
 }
 
-#[derive(Default, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq)]
 struct BlockHeader {
     created_at: u64,
     previous_hash: H256,
     nonce: u32,
 }
 
-#[derive(Default, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq)]
 pub struct TxData {
     signature: H256,
     sender: Address,

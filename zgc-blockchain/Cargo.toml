@@ -6,3 +6,4 @@ edition = "2018"
 [dependencies]
 zgc-common = { path = "../zgc-common" }
 zgc-crypto = { path = "../zgc-crypto" }
+serde = { version = "1.0", features = ["derive"] }
