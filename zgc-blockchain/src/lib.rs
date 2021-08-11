@@ -59,7 +59,6 @@ pub struct Block {
 
 impl Block {
     fn genesis() -> Self {
-        // TODO derive default?
         Self {
             height: 0,
             header: BlockHeader {
@@ -76,11 +75,6 @@ impl Block {
         }
     }
 }
-
-//#[test]
-//fn default_block() {
-//    assert_eq!(Block::genesis(), Block::default());
-//}
 
 #[derive(Deserialize, Serialize, Default, Eq, PartialEq, Debug)]
 pub struct BlockHeader {

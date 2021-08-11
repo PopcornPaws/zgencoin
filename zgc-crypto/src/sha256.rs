@@ -2,6 +2,7 @@ use crate::consts::{HASHES, ROUND_CONSTANTS};
 use crate::Hasher;
 use zgc_common::H256;
 
+#[derive(Clone, Copy)]
 pub struct Sha256;
 
 impl Sha256 {

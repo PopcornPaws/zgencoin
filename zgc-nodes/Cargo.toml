@@ -5,8 +5,11 @@ authors = ["Mark Melczer <melczer7@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-async-std = "1.9"
+async-trait = "0.1.51"
+rand = "0.8.4"
 serde_json = "1.0"
+tokio = { version = "1.9", features = ["full"] }
 
 zgc-blockchain = { path = "../zgc-blockchain" }
 zgc-crypto = { path = "../zgc-crypto" }
+
