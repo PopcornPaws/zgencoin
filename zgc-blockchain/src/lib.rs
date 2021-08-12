@@ -91,6 +91,12 @@ pub struct TxData {
     amount: u64,
 }
 
+impl TxData {
+    pub fn signature(&self) -> H256 {
+        self.signature
+    }
+}
+
 pub struct Wallet {
     public_key: Address,
 }

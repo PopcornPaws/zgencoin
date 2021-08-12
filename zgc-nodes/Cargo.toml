@@ -10,4 +10,5 @@ serde = "1.0"
 serde_json = "1.0"
 
 zgc-blockchain = { path = "../zgc-blockchain" }
+zgc-common = { path = "../zgc-common" }
 zgc-crypto = { path = "../zgc-crypto" }

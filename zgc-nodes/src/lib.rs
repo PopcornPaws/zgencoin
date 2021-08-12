@@ -1,4 +1,5 @@
 use zgc_blockchain::{Block, Blockchain, TxData, Wallet};
+use zgc_common::{Address, H256};
 use zgc_crypto::Hasher;
 
 use rand::seq::IteratorRandom;
@@ -19,7 +20,8 @@ pub enum NodeStatus<'a> {
 #[derive(Serialize, Deserialize)]
 pub enum GossipMessage {
     Transaction(TxData),
-    LastBlock(Block),
+    Block(Block),
+    BlockRequest(usize),
 }
 
 pub struct Miner<'a, 'b, T> {
@@ -47,6 +49,10 @@ where
             hasher,
         })
     }
+
+    pub fn mine(&mut self) -> Result<(), String> {
+        todo!();
+    }
 }
 
 impl<T> Node for Miner<'_, '_, T> {
@@ -59,9 +65,12 @@ impl<T> Node for Miner<'_, '_, T> {
             .expect("no peeers to connect to");
         let mut random_peer = TcpStream::connect(random_ip)
             .map_err(|e| format!("failed to establish tcp stream: {}", e))?;
+
+        // write a block
+
         random_peer
             .write_all(
-                &serde_json::to_vec(&GossipMessage::LastBlock(
+                &serde_json::to_vec(&GossipMessage::Block(
                     self.blockchain.last().unwrap().to_owned(),
                 ))
                 .unwrap(),
@@ -72,7 +81,6 @@ impl<T> Node for Miner<'_, '_, T> {
     }
 
     fn listen(&mut self) -> Result<(), String> {
-        //let mut buf = vec![0_u8; 1024];
         let (incoming_stream, peer_address) = self
             .listener
             .accept()
@@ -80,20 +88,33 @@ impl<T> Node for Miner<'_, '_, T> {
 
         let peer_address_string = peer_address.to_string();
 
+        // if new peer -> add to pool
         if !self.peers.contains(&peer_address_string) {
             self.peers.push(peer_address_string);
         }
 
         let mut deserializer = serde_json::Deserializer::from_reader(incoming_stream);
         match GossipMessage::deserialize(&mut deserializer) {
-            Ok(GossipMessage::LastBlock(block)) => println!("block = {:#?}", block),
-            Ok(GossipMessage::Transaction(tx_data)) => println!("tx data = {:#?}", tx_data),
+            Ok(GossipMessage::Block(block)) => {
+                // do this for all forks
+                // check whether bloch height is the same -> do nothing
+                // if not, check parent hash and our last block's hash -> append to our blockchain
+                // if not, and parent hash doesn't match -> add a fork
+                // switch to longest fork
+                println!("block = {:#?}", block);
+            }
+            Ok(GossipMessage::Transaction(tx_data)) => {
+                // check whether tx_data is already in our TxPool
+                // otherwise append it
+                println!("tx data = {:#?}", tx_data);
+            }
+            Ok(GossipMessage::BlockRequest(height)) => {
+                // set up a tcp stream to the incoming peer and send
+                // our block at the given height, if any
+                println!("requested block height = {:#?}", height);
+            }
             Err(e) => println!("deserialization error: {}", e),
         }
-        // TODO
-        // if last block height is the same -> check hash to validate it
-        // if hash is different -> Forked
-        // if last block height is different -> break and set status to sync start syncing
         Ok(())
     }
 }
@@ -102,10 +123,37 @@ pub struct ThinNode {
     peers: Vec<String>,
     listener: TcpListener,
     wallet: Wallet,
-    tx_pool: BTreeMap,
+    tx_pool: BTreeMap<u64, H256>, // amount signature
 }
 
-impl Node for ThinNode {}
+impl ThinNode {
+    pub fn new() -> Self {
+        todo!();
+    }
+
+    pub fn new_transaction(
+        &mut self,
+        amount: u64,
+        recipient: Address,
+        private_key: String,
+    ) -> Result<TxData, String> {
+        let tx_data = self
+            .wallet
+            .new_transaction(amount, recipient, private_key)?;
+        self.tx_pool.insert(amount, tx_data.signature());
+        Ok(tx_data)
+    }
+}
+
+impl Node for ThinNode {
+    fn gossip(&self) -> Result<(), String> {
+        todo!();
+    }
+
+    fn listen(&mut self) -> Result<(), String> {
+        todo!();
+    }
+}
 
 pub trait Node {
     fn gossip(&self) -> Result<(), String>;
