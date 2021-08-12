@@ -50,7 +50,7 @@ impl Blockchain<'_> {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Block {
     height: usize,
     header: BlockHeader,
@@ -76,7 +76,7 @@ impl Block {
     }
 }
 
-#[derive(Deserialize, Serialize, Default, Eq, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default, Eq, PartialEq, Debug)]
 pub struct BlockHeader {
     created_at: u64,
     previous_hash: H256,
