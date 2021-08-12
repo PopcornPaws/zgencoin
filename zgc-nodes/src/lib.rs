@@ -2,11 +2,16 @@ use zgc_blockchain::{Block, Blockchain, TxData};
 use zgc_crypto::Hasher;
 
 use async_trait::async_trait;
+use futures::prelude::*;
 use rand::seq::IteratorRandom;
 use rand::Rng;
-use std::collections::{BTreeMap, HashMap};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use serde_json::Value;
+use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
+use tokio_serde::formats::*;
+use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
+
+use std::collections::{BTreeMap, HashMap};
 
 pub type TxPool = BTreeMap<u64, TxData>; // tx amount - tx data
 
@@ -57,9 +62,9 @@ where
 #[async_trait]
 impl<T> Node for Miner<'_, '_, T>
 where
-    T: std::marker::Send,
+    T: std::marker::Send + std::marker::Sync,
 {
-    async fn gossip(&mut self) -> Result<(), String> {
+    async fn gossip(&self) -> Result<(), String> {
         let random_index = rand::thread_rng().gen_range(0..self.peers.len());
         let random_ip = &self.peers[random_index];
         let mut random_peer = TcpStream::connect(random_ip)
@@ -67,26 +72,40 @@ where
             .map_err(|e| format!("failed to establish tcp stream: {}", e))?;
         random_peer
             .write_all(
-                serde_json::to_string(self.blockchain.last().unwrap())
-                    .unwrap()
-                    .as_bytes(),
+                "hello".as_bytes()
+                //&serde_json::to_vec(self.blockchain.last().unwrap())
+                //    .unwrap()
+                    //.as_bytes(),
             )
             .await
             .map_err(|e| format!("failed to send block data: {}", e))?;
 
-        let mut buf = vec![0_u8; 1024];
-        let (mut incoming_stream, _) = self
+        Ok(())
+    }
+
+    async fn listen(&self) -> Result<(), String> {
+        //let mut buf = vec![0_u8; 1024];
+        let (incoming_stream, _) = self
             .listener
             .accept()
             .await
             .map_err(|e| format!("failed to accept incoming stream: {}", e))?;
 
-        let peer_last_block = incoming_stream
-            .read(&mut buf)
-            .await
-            .map_err(|e| format!("failed to read block data: {}", e))?;
+        //let peer_last_block = incoming_stream.read(&mut buf).await
+        //.map_err(|e| format!("failed to read block data: {}", e))?;
 
-        println!("last block = {:#?}", peer_last_block);
+        let length_delimited = FramedRead::new(incoming_stream, LengthDelimitedCodec::new());
+        let mut deserialized = tokio_serde::SymmetricallyFramed::new(
+            length_delimited,
+            SymmetricalJson::<Value>::default(),
+        );
+
+        if let Ok(Some(last_block)) = dbg!(deserialized.try_next()).await {
+            println!("last block = {:#?}", last_block);
+        } else {
+            println!("bad packet");
+        }
+
         // TODO
         // if last block height is the same -> check hash to validate it
         // if hash is different -> Forked
@@ -97,7 +116,8 @@ where
 
 #[async_trait]
 pub trait Node {
-    async fn gossip(&mut self) -> Result<(), String>;
+    async fn gossip(&self) -> Result<(), String>;
+    async fn listen(&self) -> Result<(), String>;
 }
 
 struct Peers {
