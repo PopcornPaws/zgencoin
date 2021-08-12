@@ -3,6 +3,7 @@ members = [
 	"zgc-blockchain",
 	"zgc-common",
 	"zgc-crypto",
+	"zgc-nodes",
 ]
 
 ## Compilation optimization profiles
