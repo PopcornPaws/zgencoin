@@ -33,11 +33,8 @@ pub struct Miner<'a, 'b, T> {
     hasher: T,
 }
 
-impl<'a, 'b, T> Miner<'a, 'b, T>
-where
-    T: Hasher,
-{
-    pub fn new(own_ip: &str, ip_pool: Vec<String>, hasher: T) -> Result<Miner<'a, 'b, T>, String> {
+impl<'a, 'b, T: Hasher> Miner<'a, 'b, T> {
+    pub fn new(own_ip: &str, ip_pool: Vec<String>, hasher: T) -> Result<Self, String> {
         let listener =
             TcpListener::bind(own_ip).map_err(|e| format!("failed to bind tcp listener: {}", e))?;
         Ok(Self {
@@ -127,8 +124,15 @@ pub struct ThinNode {
 }
 
 impl ThinNode {
-    pub fn new() -> Self {
-        todo!();
+    pub fn new(own_ip: &str, peers: Vec<String>, private_key: String) -> Result<Self, String> {
+        let listener =
+            TcpListener::bind(own_ip).map_err(|e| format!("failed to bind tcp listener: {}", e))?;
+        Ok(Self {
+            peers,
+            listener,
+            wallet: Wallet::new(private_key),
+            tx_pool: BTreeMap::new(),
+        })
     }
 
     pub fn new_transaction(
