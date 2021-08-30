@@ -47,31 +47,36 @@ impl<'a, 'b, T: Hasher> Miner<'a, 'b, T> {
         })
     }
 
-    pub fn mine(&mut self) -> Result<(), String> {
+    pub fn mine(&mut self, loops: usize) -> Result<(), String> {
+        // TODO
+        // mine in a loop
+        // if block found, append to blockchain
+        // throw out forks because our blockchain is the longest
         todo!();
     }
 }
 
-impl<T> Node for Miner<'_, '_, T> {
-    fn gossip(&self) -> Result<(), String> {
-        let mut rng = rand::thread_rng();
+impl<T: Hasher> Node for Miner<'_, '_, T> {
+    fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> Result<(), String> {
         let random_ip = self
             .peers
             .iter()
-            .choose(&mut rng)
+            .choose(rng)
             .expect("no peeers to connect to");
+
         let mut random_peer = TcpStream::connect(random_ip)
             .map_err(|e| format!("failed to establish tcp stream: {}", e))?;
 
-        // write a block
+        let gossip_msg = match self.status {
+            NodeStatus::Forked(ref forks) => {
+                GossipMessage::BlockRequest(forks[0].last().height() + 1)
+            }
+            NodeStatus::Mining => self.mine(100),
+            NodeStatus::Syncing => GossipMessage::BlockRequest(self.blockchain.last().height() + 1),
+        };
 
         random_peer
-            .write_all(
-                &serde_json::to_vec(&GossipMessage::Block(
-                    self.blockchain.last().unwrap().to_owned(),
-                ))
-                .unwrap(),
-            )
+            .write_all(&serde_json::to_vec(&gossip_msg).unwrap())
             .map_err(|e| format!("failed to send block data: {}", e))?;
 
         Ok(())
@@ -150,7 +155,7 @@ impl ThinNode {
 }
 
 impl Node for ThinNode {
-    fn gossip(&self) -> Result<(), String> {
+    fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> Result<(), String> {
         todo!();
     }
 
@@ -160,6 +165,6 @@ impl Node for ThinNode {
 }
 
 pub trait Node {
-    fn gossip(&self) -> Result<(), String>;
+    fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> Result<(), String>;
     fn listen(&mut self) -> Result<(), String>;
 }

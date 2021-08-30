@@ -45,8 +45,9 @@ impl Blockchain<'_> {
         }
     }
 
-    pub fn last(&self) -> Option<&Block> {
-        self.find_height(self.hash2block.len() - 1)
+    pub fn last(&self) -> &Block {
+        // NOTE unwrap is fine because there's at least the genesis block
+        self.find_height(self.hash2block.len() - 1).unwrap()
     }
 }
 
@@ -73,6 +74,10 @@ impl Block {
                 amount: 0,
             },
         }
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
     }
 }
 
