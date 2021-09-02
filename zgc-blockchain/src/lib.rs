@@ -1,39 +1,37 @@
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use zgc_common::{Address, H256};
 use zgc_crypto::{Hasher, Sha256};
 
+#[derive(Clone)]
 pub struct Blockchain<'a> {
-    height2hash: HashMap<usize, &'a str>,
-    hash2block: HashMap<&'a str, Block>,
+    height2hash: HashMap<usize, &'a H256>,
+    hash2block: HashMap<&'a H256, Block>,
 }
 
 impl Blockchain<'_> {
-    pub fn new(hasher: &impl Hasher) -> Self {
+    pub fn new(genesis: Block, hasher: &impl Hasher) -> Self {
         let mut bc = Self {
             height2hash: HashMap::new(),
             hash2block: HashMap::new(),
         };
-        bc.insert(Block::genesis(), hasher);
+        bc.insert(genesis, hasher);
         bc
     }
 
     pub fn insert(&mut self, block: Block, hasher: &impl Hasher) {
         // expect/unwrap is fine here because the derived
         // Serialize will (hopefully) never fail
-        let hash = Box::leak(Box::new(
-            hasher
-                .digest(
-                    serde_json::to_string(&block.header).expect("failed to serialize block header"),
-                )
-                .to_string(),
-        ));
+        let hash = Box::leak(Box::new(hasher.digest(
+            serde_json::to_string(&block.header).expect("failed to serialize block header"),
+        )));
         self.height2hash.insert(block.height, hash);
         self.hash2block.insert(hash, block);
     }
 
-    pub fn find_hash(&self, hash: &str) -> Option<&Block> {
+    pub fn find_hash(&self, hash: &H256) -> Option<&Block> {
         self.hash2block.get(hash)
     }
 
@@ -45,21 +43,27 @@ impl Blockchain<'_> {
         }
     }
 
-    pub fn last(&self) -> &Block {
+    pub fn last_block(&self) -> &Block {
         // NOTE unwrap is fine because there's at least the genesis block
         self.find_height(self.hash2block.len() - 1).unwrap()
     }
+
+    pub fn last_block_hash(&self) -> &H256 {
+        let last_height = self.height2hash.len() - 1;
+        // NOTE unwrap is fine because there's at least the genesis block
+        self.height2hash.get(&last_height).unwrap()
+    }
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Copy, Debug)]
 pub struct Block {
     height: usize,
     header: BlockHeader,
-    data: TxData,
+    data: [TxData; 2],
 }
 
 impl Block {
-    fn genesis() -> Self {
+    pub fn genesis() -> Self {
         Self {
             height: 0,
             header: BlockHeader {
@@ -67,33 +71,57 @@ impl Block {
                 previous_hash: H256::zero(),
                 nonce: 0,
             },
-            data: TxData {
+            data: [TxData {
                 signature: H256::zero(),
                 sender: Address::zero(),
                 recipient: Address::zero(),
                 amount: 0,
-            },
+            }; 2],
         }
     }
 
     pub fn height(&self) -> usize {
         self.height
     }
+
+    pub fn previous_hash(&self) -> &H256 {
+        &self.header.previous_hash
+    }
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, Default, Eq, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default, Debug)]
 pub struct BlockHeader {
     created_at: u64,
     previous_hash: H256,
     nonce: u32,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, Default)]
 pub struct TxData {
     signature: H256,
     sender: Address,
     recipient: Address,
     amount: u64,
+}
+
+impl PartialEq for TxData {
+    fn eq(&self, other: &Self) -> bool {
+        self.amount == other.amount
+    }
+}
+
+impl Eq for TxData {}
+
+impl PartialOrd for TxData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.amount.cmp(&other.amount))
+    }
+}
+
+impl Ord for TxData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.amount.cmp(&other.amount)
+    }
 }
 
 impl TxData {

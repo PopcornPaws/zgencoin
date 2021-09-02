@@ -3,7 +3,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use std::convert::{TryFrom, TryInto};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Hash<const N: usize>([u8; N]);
 
 impl<const N: usize> Hash<N> {
