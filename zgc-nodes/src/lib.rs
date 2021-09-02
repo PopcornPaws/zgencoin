@@ -47,7 +47,7 @@ impl<'a, 'b, T: Hasher> Miner<'a, 'b, T> {
         })
     }
 
-    pub fn mine(&mut self, loops: usize) -> Result<(), String> {
+    pub fn mine(&mut self, loops: usize) -> Option<Block> {
         // TODO
         // mine in a loop
         // if block found, append to blockchain
@@ -71,7 +71,13 @@ impl<T: Hasher> Node for Miner<'_, '_, T> {
             NodeStatus::Forked(ref forks) => {
                 GossipMessage::BlockRequest(forks[0].last().height() + 1)
             }
-            NodeStatus::Mining => self.mine(100),
+            NodeStatus::Mining => {
+                if let Some(new_block) = self.mine(100) {
+                    GossipMessage::Block(new_block)
+                } else {
+                    GossipMessage::Block(*self.blockchain.last())
+                }
+            }
             NodeStatus::Syncing => GossipMessage::BlockRequest(self.blockchain.last().height() + 1),
         };
 
