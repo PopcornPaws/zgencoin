@@ -1,4 +1,6 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
+
 use zgc_common::{Address, H256};
 use zgc_crypto::{Hasher, Sha256};
 
@@ -86,13 +88,33 @@ struct BlockHeader {
     nonce: u32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
 pub struct TxData {
     signature: H256,
     sender: Address,
     recipient: Address,
     amount: u64,
 }
+
+impl Ord for TxData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.amount.cmp(&other.amount)
+    }
+}
+
+impl PartialOrd for TxData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.amount.cmp(&other.amount))
+    }
+}
+
+impl PartialEq for TxData {
+    fn eq(&self, other: &Self) -> bool {
+        self.amount == other.amount
+    }
+}
+
+impl Eq for TxData {}
 
 impl TxData {
     pub fn signature(&self) -> H256 {
