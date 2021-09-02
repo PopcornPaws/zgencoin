@@ -172,20 +172,15 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                             self.blockchain.insert(block.to_owned(), &self.hasher);
                             self.status = NodeStatus::Mining;
                         }
+                        // check case when an n^th fork occurs from the same block
+                        todo!();
                     }
                     NodeStatus::Mining => {
                         if self.blockchain.last_block_hash() == block.previous_hash() {
                             self.blockchain.insert(block.to_owned(), &self.hasher);
-                        } else if self.blockchain.last_block().previous_hash()
-                            == block.previous_hash()
-                        {
-                            // NOTE panics if last_block height = 0 (but chould this be the case?
-                            let fork_height = self.blockchain.last_block().height() - 1;
-                            // NOTE unwrap is fine here because we definitely have a previous
-                            // block if the blockchain has more blocks than just the genesis
-                            let fork_block = self.blockchain.find_height(fork_height).unwrap();
-                            todo!();
-                            //self.status = NodeStatus::Forked(Blockchain::
+                        } else if self.blockchain.find_hash(block.previous_hash()).is_some() {
+                            todo!()
+                            //self.status = NodeStatus::Forked()
                         }
                     }
                     NodeStatus::Syncing => {
