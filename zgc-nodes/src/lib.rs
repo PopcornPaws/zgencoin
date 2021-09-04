@@ -44,8 +44,8 @@ impl TxPool<'_> {
     }
 }
 
-pub enum NodeStatus<'a> {
-    Forked(Vec<Blockchain<'a>>),
+pub enum NodeStatus {
+    Forked(Vec<Block>),
     Mining,
     Syncing,
 }
@@ -57,16 +57,16 @@ pub enum GossipMessage {
     BlockRequest(usize),
 }
 
-pub struct Miner<'bc, 'ns, 'tx, T> {
+pub struct Miner<'bc, 'tx, T> {
     peers: Vec<SocketAddrV4>,
     listener: TcpListener,
     blockchain: Blockchain<'bc>,
-    status: NodeStatus<'ns>,
+    status: NodeStatus,
     tx_pool: TxPool<'tx>,
     hasher: T,
 }
 
-impl<T: Hasher> Miner<'_, '_, '_, T> {
+impl<T: Hasher> Miner<'_, '_, T> {
     pub fn new(own_ip: &str, ip_pool: Vec<String>, hasher: T) -> Result<Self, String> {
         let listener =
             TcpListener::bind(own_ip).map_err(|e| format!("failed to bind tcp listener: {}", e))?;
@@ -75,6 +75,7 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
             .into_iter()
             .map(|ip| ip.parse().expect("invalid ip address format"))
             .collect();
+
         Ok(Self {
             peers,
             listener,
@@ -105,11 +106,11 @@ pub struct MessageToPeer {
     peer: SocketAddrV4,
 }
 
-impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
+impl<T: Hasher> Node for Miner<'_, '_, T> {
     fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> Result<MessageToPeer, String> {
         let gossip_msg = match self.status {
             NodeStatus::Forked(ref forks) => {
-                GossipMessage::BlockRequest(forks[0].last_block().height() + 1)
+                GossipMessage::BlockRequest(self.blockchain.last_block().height() + 1)
             }
             NodeStatus::Mining => {
                 if let Some(new_block) = self.mine(100) {
@@ -153,7 +154,7 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
 
         let mut deserializer = serde_json::Deserializer::from_reader(incoming_stream);
         match GossipMessage::deserialize(&mut deserializer) {
-            Ok(GossipMessage::Block(block)) => {
+            Ok(GossipMessage::Block(incoming_block)) => {
                 // do this for all forks
                 // check whether bloch height is the same -> do nothing
                 // if not, check parent hash and our last block's hash -> append to our blockchain
@@ -161,14 +162,16 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                 // switch to longest fork
                 match self.status {
                     NodeStatus::Forked(ref forks) => {
-                        for fork in forks.into_iter() {
-                            if fork.last_block_hash() == block.previous_hash() {
-                                self.update_blockchain_with_fork(fork.to_owned(), block);
+                        for block in forks.into_iter() {
+                            if &self.hasher.digest(block.header_string())
+                                == incoming_block.previous_hash()
+                            {
+                                //self.update_blockchain_with_fork(fork.to_owned(), incoming_block);
                                 self.status = NodeStatus::Mining;
                                 break;
                             }
                         }
-                        if self.blockchain.last_block_hash() == block.previous_hash() {
+                        if self.blockchain.last_block_hash() == incoming_block.previous_hash() {
                             self.blockchain.insert(block.to_owned(), &self.hasher);
                             self.status = NodeStatus::Mining;
                         }

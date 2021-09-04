@@ -24,9 +24,7 @@ impl Blockchain<'_> {
     pub fn insert(&mut self, block: Block, hasher: &impl Hasher) {
         // expect/unwrap is fine here because the derived
         // Serialize will (hopefully) never fail
-        let hash = Box::leak(Box::new(hasher.digest(
-            serde_json::to_string(&block.header).expect("failed to serialize block header"),
-        )));
+        let hash = Box::leak(Box::new(hasher.digest(block.header_string())));
         self.height2hash.insert(block.height, hash);
         self.hash2block.insert(hash, block);
     }
@@ -86,6 +84,10 @@ impl Block {
 
     pub fn previous_hash(&self) -> &H256 {
         &self.header.previous_hash
+    }
+
+    pub fn header_string(&self) -> String {
+        serde_json::to_string(&self.header).expect("failed to serialize block header")
     }
 }
 
