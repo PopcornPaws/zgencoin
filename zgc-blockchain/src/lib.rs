@@ -54,10 +54,22 @@ impl Blockchain<'_> {
 }
 
 #[derive(Deserialize, Serialize, Clone, Copy, Debug)]
+pub struct BlockData {
+    tx: TxData,
+    mint: TxData,
+}
+
+impl BlockData {
+    pub fn tx_data(&self) -> &TxData {
+        &self.tx
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy, Debug)]
 pub struct Block {
     height: usize,
     header: BlockHeader,
-    data: [TxData; 2],
+    data: BlockData,
 }
 
 impl Block {
@@ -69,12 +81,20 @@ impl Block {
                 previous_hash: H256::zero(),
                 nonce: 0,
             },
-            data: [TxData {
-                signature: H256::zero(),
-                sender: Address::zero(),
-                recipient: Address::zero(),
-                amount: 0,
-            }; 2],
+            data: BlockData {
+                tx: TxData {
+                    signature: H256::zero(),
+                    sender: Address::zero(),
+                    recipient: Address::zero(),
+                    amount: 0,
+                },
+                mint: TxData {
+                    signature: H256::zero(),
+                    sender: Address::zero(),
+                    recipient: Address::zero(),
+                    amount: 0,
+                },
+            },
         }
     }
 
@@ -88,6 +108,10 @@ impl Block {
 
     pub fn header_string(&self) -> String {
         serde_json::to_string(&self.header).expect("failed to serialize block header")
+    }
+
+    pub fn data(&self) -> &BlockData {
+        &self.data
     }
 }
 

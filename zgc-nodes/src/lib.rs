@@ -44,8 +44,8 @@ impl TxPool<'_> {
     }
 }
 
-pub enum NodeStatus {
-    Forked(Vec<Block>),
+pub enum NodeStatus<'a> {
+    Forked(Vec<Blockchain<'a>>),
     Mining,
     Syncing,
 }
@@ -57,16 +57,16 @@ pub enum GossipMessage {
     BlockRequest(usize),
 }
 
-pub struct Miner<'bc, 'tx, T> {
+pub struct Miner<'bc, 'ns, 'tx, T> {
     peers: Vec<SocketAddrV4>,
     listener: TcpListener,
     blockchain: Blockchain<'bc>,
-    status: NodeStatus,
+    status: NodeStatus<'ns>,
     tx_pool: TxPool<'tx>,
     hasher: T,
 }
 
-impl<T: Hasher> Miner<'_, '_, T> {
+impl<T: Hasher> Miner<'_, '_, '_, T> {
     pub fn new(own_ip: &str, ip_pool: Vec<String>, hasher: T) -> Result<Self, String> {
         let listener =
             TcpListener::bind(own_ip).map_err(|e| format!("failed to bind tcp listener: {}", e))?;
@@ -96,6 +96,11 @@ impl<T: Hasher> Miner<'_, '_, T> {
         todo!();
     }
 
+    pub fn update_tx_pool(&self, block: &Block) {
+        todo!();
+        //if block.data()
+    }
+
     pub fn update_blockchain_with_fork(&mut self, blockchain: Blockchain<'_>, block: Block) {
         todo!();
     }
@@ -106,12 +111,9 @@ pub struct MessageToPeer {
     peer: SocketAddrV4,
 }
 
-impl<T: Hasher> Node for Miner<'_, '_, T> {
+impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
     fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> Result<MessageToPeer, String> {
         let gossip_msg = match self.status {
-            NodeStatus::Forked(ref forks) => {
-                GossipMessage::BlockRequest(self.blockchain.last_block().height() + 1)
-            }
             NodeStatus::Mining => {
                 if let Some(new_block) = self.mine(100) {
                     GossipMessage::Block(new_block)
@@ -119,7 +121,7 @@ impl<T: Hasher> Node for Miner<'_, '_, T> {
                     GossipMessage::Block(*self.blockchain.last_block())
                 }
             }
-            NodeStatus::Syncing => {
+            NodeStatus::Forked(_) | NodeStatus::Syncing => {
                 GossipMessage::BlockRequest(self.blockchain.last_block().height() + 1)
             }
         };
@@ -161,35 +163,41 @@ impl<T: Hasher> Node for Miner<'_, '_, T> {
                 // if not, and parent hash doesn't match -> add a fork
                 // switch to longest fork
                 match self.status {
-                    NodeStatus::Forked(ref forks) => {
-                        for block in forks.into_iter() {
-                            if &self.hasher.digest(block.header_string())
-                                == incoming_block.previous_hash()
-                            {
-                                //self.update_blockchain_with_fork(fork.to_owned(), incoming_block);
-                                self.status = NodeStatus::Mining;
+                    NodeStatus::Forked(ref mut forks) => {
+                        for fork in forks.into_iter() {
+                            if fork.last_block_hash() == incoming_block.previous_hash() {
+                                fork.insert(incoming_block, &self.hasher);
+                                // probably not a long fork, so it's not
+                                // expensive to clone it via to_owned
+                                self.status = NodeStatus::Forked(vec![fork.to_owned()]);
                                 break;
                             }
                         }
                         if self.blockchain.last_block_hash() == incoming_block.previous_hash() {
-                            self.blockchain.insert(block.to_owned(), &self.hasher);
+                            self.blockchain.insert(incoming_block, &self.hasher);
                             self.status = NodeStatus::Mining;
                         }
                         // check case when an n^th fork occurs from the same block
                         todo!();
                     }
                     NodeStatus::Mining => {
-                        if self.blockchain.last_block_hash() == block.previous_hash() {
-                            self.blockchain.insert(block.to_owned(), &self.hasher);
-                        } else if self.blockchain.find_hash(block.previous_hash()).is_some() {
-                            todo!()
-                            //self.status = NodeStatus::Forked()
+                        if self.blockchain.last_block_hash() == incoming_block.previous_hash() {
+                            self.blockchain.insert(incoming_block, &self.hasher);
+                        } else if self
+                            .blockchain
+                            .find_hash(incoming_block.previous_hash())
+                            .is_some()
+                        {
+                            self.status = NodeStatus::Forked(vec![Blockchain::new(
+                                incoming_block,
+                                &self.hasher,
+                            )]);
                         }
                     }
                     NodeStatus::Syncing => {
-                        if self.blockchain.last_block_hash() == block.previous_hash() {
-                            self.blockchain.insert(block.to_owned(), &self.hasher);
-                        } else if self.blockchain.last_block().height() == block.height() {
+                        if self.blockchain.last_block_hash() == incoming_block.previous_hash() {
+                            self.blockchain.insert(incoming_block, &self.hasher);
+                        } else if self.blockchain.last_block().height() == incoming_block.height() {
                             self.status = NodeStatus::Mining
                         }
                     }
