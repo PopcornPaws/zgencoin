@@ -2,7 +2,7 @@ mod block;
 mod transaction;
 mod wallet;
 
-pub use block::Block;
+pub use block::{Block, BlockHeader};
 pub use transaction::TxData;
 pub use wallet::Wallet;
 

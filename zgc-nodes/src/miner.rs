@@ -2,7 +2,8 @@ use crate::node::{Node, NodeStatus};
 use crate::tx_pool::TxPool;
 use crate::{GossipMessage, MessageToPeer};
 
-use zgc_blockchain::{Block, Blockchain};
+use zgc_blockchain::{Block, Blockchain, BlockHeader, Wallet};
+use zgc_common::H256;
 use zgc_crypto::Hasher;
 
 use rand::seq::IteratorRandom;
@@ -13,14 +14,17 @@ use std::net::{SocketAddrV4, TcpListener};
 pub struct Miner<'bc, 'ns, 'tx, T> {
     peers: Vec<SocketAddrV4>,
     listener: TcpListener,
+    difficulty: u8,
+    decimals: u8,
     blockchain: Blockchain<'bc>,
     status: NodeStatus<'ns>,
     tx_pool: TxPool<'tx>,
     hasher: T,
+    wallet: Wallet,
 }
 
 impl<T: Hasher> Miner<'_, '_, '_, T> {
-    pub fn new(own_ip: &str, ip_pool: Vec<String>, hasher: T) -> Result<Self, String> {
+    pub fn new(own_ip: &str, ip_pool: Vec<String>, hasher: T, difficulty: u8, decimals: u8, private_key: String) -> Result<Self, String> {
         let listener =
             TcpListener::bind(own_ip).map_err(|e| format!("failed to bind tcp listener: {}", e))?;
 
@@ -32,10 +36,13 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         Ok(Self {
             peers,
             listener,
+            difficulty,
+            decimals,
             blockchain: Blockchain::new(Block::genesis(), &hasher),
             status: NodeStatus::Syncing,
             tx_pool: TxPool::new(),
             hasher,
+            wallet: Wallet::new(private_key),
         })
     }
 
@@ -46,7 +53,23 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         // throw out forks because our blockchain is the longest?
         // get the highest amount to mine first
         // mint money for ourselves as a fraction of the mined amount
-        todo!();
+        self.tx_pool.peek_last().map(|&tx| {
+            let created_at = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_micros();
+            let target_hash = H256::masked(difficulty);
+            let mut new_block_header = BlockHeader::new(created_at, self.difficulty, self.blockchain().last_block_hash(), 0);
+            let mut block: Option<Block> = None;
+            for _ in 0..loops {
+                let hash = self.hasher.digest(new_block_header.to_string());
+                if hash < target_hash {
+                    let new_mint_tx = self.wallet.new_transaction()
+                    //block = Some()
+            }
+            block
+        }
+    }
+
+    fn compute_new_mint_amount(&self, mined_amount: u64) -> u64 {
+        
     }
 
     pub fn update_tx_pool(&self, block: &Block) {

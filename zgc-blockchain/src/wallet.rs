@@ -14,6 +14,10 @@ impl Wallet {
         }
     }
 
+    pub fn pubkey(&self) -> &Address {
+        &self.pubkey
+    }
+
     pub fn new_transaction(
         &self,
         amount: u64,

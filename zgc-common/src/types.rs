@@ -3,7 +3,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use std::convert::{TryFrom, TryInto};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct Hash<const N: usize>([u8; N]);
 
 impl<const N: usize> Hash<N> {
@@ -43,6 +43,32 @@ impl<const N: usize> Hash<N> {
 
     pub fn new(bytes: [u8; N]) -> Self {
         Self(bytes)
+    }
+
+    pub fn max() -> Self {
+        Self([u8::MAX; N])
+    }
+
+    pub fn masked(leading_zeros: u8) -> Self {
+        if leading_zeros as usize > N {
+            Self::zero()
+        } else if leading_zeros == 0 {
+            Self::max()
+        } else {
+            let mut hash = Self::max();
+            if leading_zeros % 2 == 0 {
+                for i in 0..leading_zeros / 2 {
+                    hash.0[i as usize] = 0;
+                }
+            } else {
+                let leading_zeros = leading_zeros - 1;
+                for i in 0..leading_zeros / 2 {
+                    hash.0[i as usize] = 0;
+                }
+                hash.0[(leading_zeros / 2) as usize] = 0x0f;
+            }
+            hash
+        }
     }
 }
 
@@ -162,5 +188,23 @@ mod test {
             hash,
             Err("cannot parse into hexadecimal: invalid digit found in string".to_owned())
         );
+    }
+
+    #[test]
+    fn max_and_min() {
+        let max = Hash::<4>::max();
+        let middle = Hash::<4>::try_from_str("45aafd03").unwrap();
+        let min = Hash::<4>::zero();
+        assert!(max > middle);
+        assert!(min < middle);
+
+        let masked = Hash::<4>::masked(0);
+        assert_eq!(masked.to_string(), "ffffffff");
+        let masked = Hash::<4>::masked(1);
+        assert_eq!(masked.to_string(), "0fffffff");
+        let masked = Hash::<4>::masked(2);
+        assert_eq!(masked.to_string(), "00ffffff");
+        let masked = Hash::<4>::masked(3);
+        assert_eq!(masked.to_string(), "000fffff");
     }
 }
