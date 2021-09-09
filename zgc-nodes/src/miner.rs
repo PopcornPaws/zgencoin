@@ -148,6 +148,7 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
             .parse()
             .map_err(|_| "invalid peer address format".to_string())?;
 
+        // TODO
         // if new peer -> add to pool
         // in the blocking case this is a problem
         //if !self.peers.contains(&peer_address) {
@@ -168,6 +169,7 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                 );
                 match self.status {
                     NodeStatus::Forked(ref mut forks) => {
+                        // try with &, &mut, ref, ref mut
                         for fork in forks.iter_mut() {
                             if fork.last_block_hash() == incoming_block.previous_hash() {
                                 fork.insert(incoming_block, &self.hasher);

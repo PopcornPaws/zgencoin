@@ -202,7 +202,7 @@ mod test {
 
     #[test]
     fn preprocessing() {
-        let preprocessed_data = preprocess("hello".to_owned());
+        let preprocessed_data = preprocess("hello");
         assert_eq!(preprocessed_data.len(), 64);
         assert_eq!(preprocessed_data[5], 0b1000_0000);
         assert_eq!(preprocessed_data[56..], [0_u8, 0, 0, 0, 0, 0, 0, 40]);

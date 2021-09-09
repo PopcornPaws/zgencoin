@@ -9,8 +9,8 @@ use rand_chacha::ChaCha8Rng as Cc8;
 use std::time::SystemTime;
 
 fn main() -> Result<(), String> {
-    let ip_0 = "127.0.0.1:33999";
-    let ip_1 = "127.0.0.1:33998";
+    //let ip_0 = "127.0.0.1:33999";
+    //let ip_1 = "127.0.0.1:33998";
     let ip_2 = "127.0.0.1:33997";
     let ip_3 = "127.0.0.1:33996";
 
