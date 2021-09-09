@@ -2,7 +2,7 @@ use crate::consts::{HASHES, ROUND_CONSTANTS};
 use crate::Hasher;
 use zgc_common::H256;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Sha256;
 
 impl Sha256 {
@@ -28,7 +28,7 @@ impl Sha256 {
 // STEP 4 >> concatenate final hash
 
 impl Hasher for Sha256 {
-    fn digest(&self, input: String) -> H256 {
+    fn digest<T: AsRef<str>>(&self, input: T) -> H256 {
         let processed = preprocess(input);
         // since HASHES [u8; 8] is a Copy type (because it's not expensive to copy
         // 8 u32 numbers) it doesn't get moved out of scope, it is simply copied
@@ -80,13 +80,13 @@ fn right_rotate(num: u32, mut by: usize) -> u32 {
 /// that if the input is passed to this function by value,
 /// it is moved into the scope of this function and cannot
 /// be used anymore in the parent function.
-fn preprocess(input: String) -> Vec<u8> {
+fn preprocess<T: AsRef<str>>(input: T) -> Vec<u8> {
     // as_bytes(&self) vs into_bytes(self)
     // as_bytes -> input is passed by reference so it doesn't get moved out of
     // scope
     // into_bytes -> input is passed by value so it does get moved out of scope
     // and cannot be used afterwards
-    let mut input_bytes = input.into_bytes(); // Vec<u8>
+    let mut input_bytes = input.as_ref().as_bytes().to_vec(); // Vec<u8>
     let original_bytes_len = input_bytes.len(); // in bytes!
 
     // reserve some memory for the Vec<u8> (dynamically allocated on the heap)
@@ -153,6 +153,7 @@ fn schedule(chunk_512: &[u8]) -> Vec<u32> {
 ///
 /// In every chunk loop, the hash values are updated in place
 /// using the scheduled values generated in [`schedule`].
+#[allow(clippy::many_single_char_names)]
 fn compress(hash_values: &mut [u32], scheduled: &[u32]) {
     let mut a = hash_values[0];
     let mut b = hash_values[1];
@@ -238,27 +239,26 @@ mod test {
     #[test]
     fn encoding() {
         let hasher = Sha256::new();
-        let encoded = hasher.digest(String::from(""));
+        let encoded = hasher.digest("");
         assert_eq!(
-            encoded.to_string(),
+            encoded.as_string(),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
-        let encoded = hasher.digest(String::from("hello world"));
+        let encoded = hasher.digest("hello world");
         assert_eq!(
-            encoded.to_string(),
+            encoded.as_string(),
             "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
         );
-        let encoded = hasher.digest(String::from("test data"));
+        let encoded = hasher.digest("test data");
         assert_eq!(
-            encoded.to_string(),
+            encoded.as_string(),
             "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9"
         );
 
-        let encoded = hasher.digest(String::from(
-            "Do you think that this sentence is definitely longer than 64 bytes?",
-        ));
+        let encoded =
+            hasher.digest("Do you think that this sentence is definitely longer than 64 bytes?");
         assert_eq!(
-            encoded.to_string(),
+            encoded.as_string(),
             "fba4ec9f441ffbadbf3a21a9976976f34bf2448702c47279677ab594979a3bb9"
         );
     }

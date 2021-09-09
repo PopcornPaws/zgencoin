@@ -36,3 +36,13 @@ impl Ord for TxData {
         self.amount.cmp(&other.amount)
     }
 }
+
+impl TxData {
+    pub fn amount(&self) -> u64 {
+        self.amount
+    }
+
+    pub fn as_string(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+}

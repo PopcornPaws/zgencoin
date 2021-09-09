@@ -19,11 +19,11 @@ pub enum GossipMessage {
 }
 
 pub struct MessageToPeer {
-    msg: GossipMessage,
-    peer: SocketAddrV4,
+    pub msg: GossipMessage,
+    pub peer: SocketAddrV4,
 }
 
-fn send_message(msg_to_peer: MessageToPeer) -> Result<(), String> {
+pub fn send_message(msg_to_peer: MessageToPeer) -> Result<(), String> {
     let mut peer = TcpStream::connect(msg_to_peer.peer)
         .map_err(|e| format!("failed to establish tcp stream: {}", e))?;
 

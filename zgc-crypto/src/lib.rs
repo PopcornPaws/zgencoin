@@ -7,5 +7,5 @@ mod sha256;
 pub use sha256::Sha256;
 
 pub trait Hasher {
-    fn digest(&self, input: String) -> zgc_common::H256;
+    fn digest<T: AsRef<str>>(&self, input: T) -> zgc_common::H256;
 }

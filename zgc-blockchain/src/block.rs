@@ -1,7 +1,7 @@
 use crate::TxData;
 
 use serde::{Deserialize, Serialize};
-use zgc_common::{Address, H256};
+use zgc_common::H256;
 
 #[derive(Deserialize, Serialize, Clone, Copy, Default, Debug)]
 pub struct Block {
@@ -11,7 +11,14 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(height: usize, header: BlockHeader, data: BlockData)
+    pub fn new(height: usize, header: BlockHeader, data: BlockData) -> Self {
+        Self {
+            height,
+            header,
+            data,
+        }
+    }
+
     pub fn genesis() -> Self {
         Self::default()
     }
@@ -25,7 +32,7 @@ impl Block {
     }
 
     pub fn header_string(&self) -> String {
-        self.header.to_string()
+        self.header.as_string()
     }
 
     pub fn tx_data(&self) -> &TxData {
@@ -35,7 +42,6 @@ impl Block {
 
 #[derive(Deserialize, Serialize, Clone, Copy, Default, Debug)]
 pub struct BlockHeader {
-    created_at: u128,
     difficulty: u8,
     previous_hash: H256,
     data_hash: H256,
@@ -43,22 +49,26 @@ pub struct BlockHeader {
 }
 
 impl BlockHeader {
-    pub fn new(created_at: u128, difficulty: u8, previous_hash: H256, nonce: u32) -> Self {
+    pub fn new(difficulty: u8, previous_hash: H256, data_hash: H256, nonce: u32) -> Self {
         Self {
-            created_at,
             difficulty,
             previous_hash,
+            data_hash,
             nonce,
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         // NOTE serialization won't fail
         serde_json::to_string(&self).expect("failed to serialize block header")
     }
 
-    pub fn set_nonce(&mut self, nonce: u32) {
-        self.nonce = nonce
+    pub fn nonce(&self) -> u32 {
+        self.nonce
+    }
+
+    pub fn nonce_mut(&mut self) -> &mut u32 {
+        &mut self.nonce
     }
 }
 

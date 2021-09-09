@@ -2,11 +2,12 @@ use crate::node::{Node, NodeStatus};
 use crate::tx_pool::TxPool;
 use crate::{GossipMessage, MessageToPeer};
 
-use zgc_blockchain::{Block, Blockchain, BlockHeader, Wallet};
+use zgc_blockchain::{Block, BlockData, BlockHeader, Blockchain, Wallet};
 use zgc_common::H256;
 use zgc_crypto::Hasher;
 
 use rand::seq::IteratorRandom;
+use rand::Rng;
 use serde::Deserialize;
 
 use std::net::{SocketAddrV4, TcpListener};
@@ -24,12 +25,19 @@ pub struct Miner<'bc, 'ns, 'tx, T> {
 }
 
 impl<T: Hasher> Miner<'_, '_, '_, T> {
-    pub fn new(own_ip: &str, ip_pool: Vec<String>, hasher: T, difficulty: u8, decimals: u8, private_key: String) -> Result<Self, String> {
+    pub fn new(
+        own_ip: &str,
+        ip_pool: &[&str],
+        hasher: T,
+        difficulty: u8,
+        decimals: u8,
+        private_key: &str,
+    ) -> Result<Self, String> {
         let listener =
             TcpListener::bind(own_ip).map_err(|e| format!("failed to bind tcp listener: {}", e))?;
 
         let peers = ip_pool
-            .into_iter()
+            .iter()
             .map(|ip| ip.parse().expect("invalid ip address format"))
             .collect();
 
@@ -46,39 +54,50 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         })
     }
 
-    pub fn mine(&mut self, loops: usize) -> Option<Block> {
+    pub fn mine(&mut self, loops: usize, rng: &mut dyn rand::RngCore) -> Option<Block> {
         // TODO
         // mine in a loop
         // if block found, append to blockchain
         // throw out forks because our blockchain is the longest?
         // get the highest amount to mine first
         // mint money for ourselves as a fraction of the mined amount
-        self.tx_pool.peek_last().map(|&tx| {
-            let created_at = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_micros();
-            let target_hash = H256::masked(difficulty);
-            let mut new_block_header = BlockHeader::new(created_at, self.difficulty, self.blockchain().last_block_hash(), 0);
+        if let Some(&tx) = self.tx_pool.peek_last() {
+            let target_hash = H256::masked(self.difficulty);
+            let mut new_block_header = BlockHeader::new(
+                self.difficulty,
+                *self.blockchain.last_block_hash(),
+                self.hasher.digest(tx.as_string()),
+                rng.gen(),
+            );
             let mut block: Option<Block> = None;
             for _ in 0..loops {
-                let hash = self.hasher.digest(new_block_header.to_string());
-                if hash < target_hash {
-                    let new_mint_tx = self.wallet.new_transaction()
-                    //block = Some()
+                let header_hash = self.hasher.digest(new_block_header.as_string());
+                if header_hash < target_hash {
+                    let self_mint = self.compute_self_mint_amount(tx.amount());
+                    let new_mint_tx = self.wallet.new_self_mint(self_mint);
+                    let block_data = BlockData {
+                        tx: *tx,
+                        mint: new_mint_tx,
+                    };
+                    let new_block = Block::new(self.blockchain.len(), new_block_header, block_data);
+                    self.blockchain.insert(new_block, &self.hasher);
+                    block = Some(new_block);
+                    self.tx_pool.remove_last();
+                    break;
+                } else {
+                    let nonce = new_block_header.nonce_mut();
+                    *nonce = nonce.wrapping_add(1);
+                }
             }
             block
+        } else {
+            None
         }
     }
 
-    fn compute_new_mint_amount(&self, mined_amount: u64) -> u64 {
-        
-    }
-
-    pub fn update_tx_pool(&self, block: &Block) {
-        todo!();
-        //if block.data()
-    }
-
-    pub fn update_blockchain_with_fork(&mut self, blockchain: Blockchain<'_>, block: Block) {
-        todo!();
+    fn compute_self_mint_amount(&self, mined_amount: u64) -> u64 {
+        let self_mint = mined_amount * self.decimals as u64 * self.difficulty as u64 / 100;
+        self_mint / self.decimals as u64
     }
 }
 
@@ -86,7 +105,7 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
     fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> Result<MessageToPeer, String> {
         let gossip_msg = match self.status {
             NodeStatus::Mining => {
-                if let Some(new_block) = self.mine(100) {
+                if let Some(new_block) = self.mine(100, rng) {
                     GossipMessage::Block(new_block)
                 } else {
                     GossipMessage::Block(*self.blockchain.last_block())
@@ -135,7 +154,7 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                 // switch to longest fork
                 match self.status {
                     NodeStatus::Forked(ref mut forks) => {
-                        for fork in forks.into_iter() {
+                        for fork in forks.iter_mut() {
                             if fork.last_block_hash() == incoming_block.previous_hash() {
                                 fork.insert(incoming_block, &self.hasher);
                                 // probably not a long fork, so it's not
@@ -177,7 +196,9 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
             Ok(GossipMessage::Transaction(tx_data)) => {
                 // check whether tx_data is already in our TxPool
                 // otherwise append it
-                if !self.tx_pool.contains(&tx_data.signature()) {
+                if !self.tx_pool.contains(&tx_data.signature())
+                    && tx_data.signature() != H256::max()
+                {
                     self.tx_pool.insert(tx_data);
                 }
                 println!("tx data = {:#?}", tx_data);
@@ -201,5 +222,40 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
             Err(e) => return Err(e.to_string()),
         }
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng as Cc8;
+    use zgc_common::Address;
+    use zgc_crypto::Sha256;
+
+    #[test]
+    fn test_mine() {
+        let own_ip = "127.0.0.1:7788";
+        let ip_pool = &["127.0.0.1:7789"];
+        let hasher = Sha256::new();
+        let mut rng = Cc8::from_seed(Default::default());
+        let mut miner = Miner::new(own_ip, ip_pool, hasher, 1, 5, "miner_priv@key").unwrap();
+
+        let peer_priv_key = "peer_priv@key";
+        let peer_wallet = Wallet::new(peer_priv_key);
+        let recipient = Address::try_from_str("9961003ec5189ff5bd86418247db65c1c36cadf2").unwrap();
+        let new_tx = peer_wallet
+            .new_transaction(150, recipient, peer_priv_key)
+            .unwrap();
+        miner.tx_pool.insert(new_tx);
+        let block = miner.mine(100, &mut rng).unwrap();
+
+        assert_eq!(block.height(), 1); // comes right after the genesis block
+        assert_eq!(
+            block.previous_hash(),
+            &miner.hasher.digest(Block::genesis().header_string())
+        );
+        assert_eq!(block.tx_data().signature(), new_tx.signature());
+        assert_eq!(2, miner.blockchain.len());
     }
 }

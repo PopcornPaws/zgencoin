@@ -2,7 +2,7 @@ mod block;
 mod transaction;
 mod wallet;
 
-pub use block::{Block, BlockHeader};
+pub use block::{Block, BlockData, BlockHeader};
 pub use transaction::TxData;
 pub use wallet::Wallet;
 
@@ -55,5 +55,10 @@ impl Blockchain<'_> {
         let last_height = self.height2hash.len() - 1;
         // NOTE unwrap is fine because there's at least the genesis block
         self.height2hash.get(&last_height).unwrap()
+    }
+
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.hash2block.len()
     }
 }

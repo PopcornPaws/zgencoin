@@ -33,7 +33,7 @@ impl<const N: usize> Hash<N> {
         Ok(Self(array))
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         self.0.iter().map(|byte| format!("{:02x}", byte)).collect()
     }
 
@@ -106,7 +106,7 @@ impl<const N: usize> Serialize for Hash<N> {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        serializer.serialize_str(&self.as_string())
         //serializer.serialize_bytes(&self.0)
     }
 }
@@ -168,12 +168,12 @@ mod test {
         let address_str = "0123456789abcdeffedcba9876543210aabbccdd";
         let address =
             Hash::<20>::try_from_str(address_str).expect("failed to parse address string");
-        assert_eq!(address.to_string(), address_str);
+        assert_eq!(address.as_string(), address_str);
 
         let address_str_0x = String::from("0x") + address_str;
         let address =
             Hash::<20>::try_from_str(&address_str_0x).expect("failed to parse address string");
-        assert_eq!(address.to_string(), address_str);
+        assert_eq!(address.as_string(), address_str);
     }
 
     #[test]
@@ -199,12 +199,12 @@ mod test {
         assert!(min < middle);
 
         let masked = Hash::<4>::masked(0);
-        assert_eq!(masked.to_string(), "ffffffff");
+        assert_eq!(masked.as_string(), "ffffffff");
         let masked = Hash::<4>::masked(1);
-        assert_eq!(masked.to_string(), "0fffffff");
+        assert_eq!(masked.as_string(), "0fffffff");
         let masked = Hash::<4>::masked(2);
-        assert_eq!(masked.to_string(), "00ffffff");
+        assert_eq!(masked.as_string(), "00ffffff");
         let masked = Hash::<4>::masked(3);
-        assert_eq!(masked.to_string(), "000fffff");
+        assert_eq!(masked.as_string(), "000fffff");
     }
 }
