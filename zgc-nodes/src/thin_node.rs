@@ -39,10 +39,11 @@ impl ThinNode {
         amount: u64,
         recipient: Address,
         private_key: &str,
+        timestamp: u128,
     ) -> Result<(), String> {
         let tx_data = self
             .wallet
-            .new_transaction(amount, recipient, private_key)?;
+            .new_transaction(amount, recipient, private_key, timestamp)?;
         self.tx_pool.push(tx_data);
         Ok(())
     }
@@ -97,7 +98,10 @@ impl Node for ThinNode {
                     .position(|&x| x.signature == incoming_block.data().tx.signature)
                 {
                     let tx = self.tx_pool.remove(index);
-                    println!("[THIN_NODE] removed mined tx with signature: {:?}", tx.signature);
+                    println!(
+                        "[THIN_NODE] removed mined tx with signature: {:?}",
+                        tx.signature
+                    );
                 }
                 Ok(MessageToPeer {
                     msg: GossipMessage::Ping,

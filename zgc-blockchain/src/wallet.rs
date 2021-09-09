@@ -23,6 +23,7 @@ impl Wallet {
         amount: u64,
         recipient: Address,
         private_key: &str,
+        created_at: u128,
     ) -> Result<TxData, String> {
         if self.public_key != keygen(private_key) {
             return Err("Wrong private key provided, cannot sign transaction".to_owned());
@@ -30,7 +31,7 @@ impl Wallet {
 
         let tx_header = format!(
             "{},{:?},{:?},{}",
-            amount, self.public_key, recipient, private_key
+            amount, self.public_key, recipient, created_at,
         );
 
         let hasher = Sha256::new();

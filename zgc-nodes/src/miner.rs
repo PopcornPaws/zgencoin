@@ -33,8 +33,8 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         decimals: u8,
         private_key: &str,
     ) -> Result<Self, String> {
-        let listener = TcpListener::bind(own_ip)
-            .map_err(|e| format!("failed to bind tcp listener: {}", e))?;
+        let listener =
+            TcpListener::bind(own_ip).map_err(|e| format!("failed to bind tcp listener: {}", e))?;
 
         let peers = ip_pool
             .iter()
@@ -54,6 +54,10 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         })
     }
 
+    pub fn set_status_to_mining(&mut self) {
+        self.status = NodeStatus::Mining;
+    }
+
     pub fn mine(&mut self, loops: usize, init_nonce: u32) -> Option<Block> {
         // TODO
         // mine in a loop
@@ -61,8 +65,8 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         // throw out forks because our blockchain is the longest?
         // get the highest amount to mine first
         // mint money for ourselves as a fraction of the mined amount
-        println!("[MINER] started mining with nonce: {}", init_nonce);
         if let Some(&tx) = self.tx_pool.peek_last() {
+            println!("[MINER] started mining with nonce: {}", init_nonce);
             let target_hash = H256::masked(self.difficulty);
             let mut new_block_header = BlockHeader::new(
                 self.difficulty,
@@ -81,7 +85,8 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
                         mint_tx: new_mint_tx,
                     };
                     let new_block = Block::new(self.blockchain.len(), new_block_header, block_data);
-                    println!("[MINER] successfully mined block with nonce: {}", new_block.nonce());
+                    //println!("[MINER] successfully mined block with nonce: {}", new_block.nonce());
+                    println!("[MINER] successfully mined block: {:#?}", new_block);
                     self.blockchain.insert(new_block, &self.hasher);
                     block = Some(new_block);
                     self.tx_pool.remove_last();
@@ -157,7 +162,10 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                 // if not, check parent hash and our last block's hash -> append to our blockchain
                 // if not, and parent hash doesn't match -> add a fork
                 // switch to longest fork
-                println!("[MINER] received block with height: {}", incoming_block.height()); 
+                println!(
+                    "[MINER] received block with height: {}",
+                    incoming_block.height()
+                );
                 match self.status {
                     NodeStatus::Forked(ref mut forks) => {
                         for fork in forks.iter_mut() {
@@ -194,18 +202,30 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                         if self.blockchain.last_block_hash() == incoming_block.previous_hash() {
                             self.blockchain.insert(incoming_block, &self.hasher);
                         } else if self.blockchain.last_block().height() == incoming_block.height() {
-                            println!("[MINER] synced successfully"); 
+                            println!("[MINER] synced successfully");
                             self.status = NodeStatus::Mining
                         }
                     }
                 }
             }
             Ok(GossipMessage::Transaction(tx_data)) => {
-                // check whether tx_data is already in our TxPool
-                // otherwise append it
-                if !self.tx_pool.contains(&tx_data.signature) && tx_data.signature != H256::max() {
-                    println!("[MINER] received tx with signature = {:?}", tx_data.signature);
-                    self.tx_pool.insert(tx_data);
+                // check whether transaction has already been mined
+                if self
+                    .blockchain
+                    .find_transaction(tx_data.signature)
+                    .is_none()
+                {
+                    // check whether tx_data is already in our TxPool
+                    // otherwise append it
+                    if !self.tx_pool.contains(&tx_data.signature)
+                        && tx_data.signature != H256::max()
+                    {
+                        println!(
+                            "[MINER] received tx with signature = {:?}",
+                            tx_data.signature
+                        );
+                        self.tx_pool.insert(tx_data);
+                    }
                 }
             }
             Ok(GossipMessage::BlockRequest(height)) => {
@@ -247,12 +267,13 @@ mod test {
         let ip_pool = &["127.0.0.1:7789"];
         let hasher = Sha256::new();
         let mut miner = Miner::new(own_ip, ip_pool, hasher, 1, 5, "miner_priv@key").unwrap();
+        let timestamp = 9876543210_u128;
 
         let peer_priv_key = "peer_priv@key";
         let peer_wallet = Wallet::new(peer_priv_key);
         let recipient = Address::try_from_str("9961003ec5189ff5bd86418247db65c1c36cadf2").unwrap();
         let new_tx = peer_wallet
-            .new_transaction(150, recipient, peer_priv_key)
+            .new_transaction(150, recipient, peer_priv_key, timestamp)
             .unwrap();
         miner.tx_pool.insert(new_tx);
         let block = miner.mine(100, 100_000).unwrap();
@@ -266,7 +287,7 @@ mod test {
         assert_eq!(block.data().mint_tx.signature, H256::max());
         assert_eq!(block.data().mint_tx.amount, 1);
         assert_eq!(miner.blockchain.len(), 2);
-        assert_eq!(block.nonce(), 100_002);
+        assert_eq!(block.nonce(), 100_024);
     }
 
     #[test]
@@ -275,12 +296,13 @@ mod test {
         let ip_pool = &["127.0.0.1:7781"];
         let hasher = Sha256::new();
         let mut miner = Miner::new(own_ip, ip_pool, hasher, 2, 5, "miner_priv@key").unwrap();
+        let timestamp = 9876543210_u128;
 
         let peer_priv_key = "peer_priv@key";
         let peer_wallet = Wallet::new(peer_priv_key);
         let recipient = Address::try_from_str("9961003ec5189ff5bd86418247db65c1c36cadf2").unwrap();
         let new_tx = peer_wallet
-            .new_transaction(15_000, recipient, peer_priv_key)
+            .new_transaction(15_000, recipient, peer_priv_key, timestamp)
             .unwrap();
         miner.tx_pool.insert(new_tx);
         let block = miner.mine(1000, 100_000).unwrap();
@@ -294,7 +316,7 @@ mod test {
         assert_eq!(block.data().mint_tx.signature, H256::max());
         assert_eq!(block.data().mint_tx.amount, 300);
         assert_eq!(miner.blockchain.len(), 2);
-        assert_eq!(block.nonce(), 100_229);
+        assert_eq!(block.nonce(), 100_332);
     }
 
     #[test]
@@ -303,12 +325,13 @@ mod test {
         let ip_pool = &["127.0.0.1:7783"];
         let hasher = Sha256::new();
         let mut miner = Miner::new(own_ip, ip_pool, hasher, 3, 5, "miner_priv@key").unwrap();
+        let timestamp = 9876543210_u128;
 
         let peer_priv_key = "peer_priv@key";
         let peer_wallet = Wallet::new(peer_priv_key);
         let recipient = Address::try_from_str("9961003ec5189ff5bd86418247db65c1c36cadf2").unwrap();
         let new_tx = peer_wallet
-            .new_transaction(2000, recipient, peer_priv_key)
+            .new_transaction(2000, recipient, peer_priv_key, timestamp)
             .unwrap();
         miner.tx_pool.insert(new_tx);
         let block = miner.mine(10000, 100_000).unwrap();
@@ -322,6 +345,6 @@ mod test {
         assert_eq!(block.data().mint_tx.signature, H256::max());
         assert_eq!(block.data().mint_tx.amount, 60);
         assert_eq!(miner.blockchain.len(), 2);
-        assert_eq!(block.nonce(), 102_300);
+        assert_eq!(block.nonce(), 106_222);
     }
 }

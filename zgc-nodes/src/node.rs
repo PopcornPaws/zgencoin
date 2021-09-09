@@ -1,4 +1,4 @@
-use crate::GossipResult; 
+use crate::GossipResult;
 use zgc_blockchain::Blockchain;
 
 pub enum NodeStatus<'a> {

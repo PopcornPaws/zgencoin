@@ -46,6 +46,15 @@ impl Blockchain<'_> {
         }
     }
 
+    pub fn find_transaction(&self, tx_hash: H256) -> Option<&Block> {
+        for block in self.hash2block.values() {
+            if block.data().tx.signature == tx_hash {
+                return Some(block);
+            }
+        }
+        None
+    }
+
     pub fn last_block(&self) -> &Block {
         // NOTE unwrap is fine because there's at least the genesis block
         self.find_height(self.hash2block.len() - 1).unwrap()
