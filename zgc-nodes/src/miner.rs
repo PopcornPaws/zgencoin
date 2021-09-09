@@ -1,6 +1,6 @@
 use crate::node::{Node, NodeStatus};
 use crate::tx_pool::TxPool;
-use crate::{GossipMessage, MessageToPeer};
+use crate::{GossipMessage, GossipResult, MessageToPeer};
 
 use zgc_blockchain::{Block, BlockData, BlockHeader, Blockchain, Wallet};
 use zgc_common::H256;
@@ -33,8 +33,8 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         decimals: u8,
         private_key: &str,
     ) -> Result<Self, String> {
-        let listener =
-            TcpListener::bind(own_ip).map_err(|e| format!("failed to bind tcp listener: {}", e))?;
+        let listener = TcpListener::bind(own_ip)
+            .map_err(|e| format!("failed to bind tcp listener: {}", e))?;
 
         let peers = ip_pool
             .iter()
@@ -61,6 +61,7 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         // throw out forks because our blockchain is the longest?
         // get the highest amount to mine first
         // mint money for ourselves as a fraction of the mined amount
+        println!("[MINER] started mining with nonce: {}", init_nonce);
         if let Some(&tx) = self.tx_pool.peek_last() {
             let target_hash = H256::masked(self.difficulty);
             let mut new_block_header = BlockHeader::new(
@@ -80,6 +81,7 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
                         mint_tx: new_mint_tx,
                     };
                     let new_block = Block::new(self.blockchain.len(), new_block_header, block_data);
+                    println!("[MINER] successfully mined block with nonce: {}", new_block.nonce());
                     self.blockchain.insert(new_block, &self.hasher);
                     block = Some(new_block);
                     self.tx_pool.remove_last();
@@ -102,7 +104,7 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
 }
 
 impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
-    fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> Result<MessageToPeer, String> {
+    fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> GossipResult {
         let gossip_msg = match self.status {
             NodeStatus::Mining => {
                 if let Some(new_block) = self.mine(100, rng.gen()) {
@@ -128,21 +130,24 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
         })
     }
 
-    fn listen(&mut self) -> Result<Option<MessageToPeer>, String> {
+    fn listen(&mut self) -> GossipResult {
+        //let incoming_stream = self.listener.incoming().last().unwrap().unwrap();
+        //let peer_address = incoming_stream.peer_addr().map_err(|e| e.to_string())?;
         let (incoming_stream, peer_address) = self
             .listener
             .accept()
             .map_err(|e| format!("failed to accept incoming stream: {}", e))?;
 
-        // if new peer -> add to pool
         let peer_address: SocketAddrV4 = peer_address
             .to_string()
             .parse()
             .map_err(|_| "invalid peer address format".to_string())?;
 
-        if !self.peers.contains(&peer_address) {
-            self.peers.push(peer_address);
-        }
+        // if new peer -> add to pool
+        // in the blocking case this is a problem
+        //if !self.peers.contains(&peer_address) {
+        //    self.peers.push(peer_address);
+        //}
 
         let mut deserializer = serde_json::Deserializer::from_reader(incoming_stream);
         match GossipMessage::deserialize(&mut deserializer) {
@@ -152,6 +157,7 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                 // if not, check parent hash and our last block's hash -> append to our blockchain
                 // if not, and parent hash doesn't match -> add a fork
                 // switch to longest fork
+                println!("[MINER] received block with height: {}", incoming_block.height()); 
                 match self.status {
                     NodeStatus::Forked(ref mut forks) => {
                         for fork in forks.iter_mut() {
@@ -188,6 +194,7 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                         if self.blockchain.last_block_hash() == incoming_block.previous_hash() {
                             self.blockchain.insert(incoming_block, &self.hasher);
                         } else if self.blockchain.last_block().height() == incoming_block.height() {
+                            println!("[MINER] synced successfully"); 
                             self.status = NodeStatus::Mining
                         }
                     }
@@ -197,9 +204,9 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                 // check whether tx_data is already in our TxPool
                 // otherwise append it
                 if !self.tx_pool.contains(&tx_data.signature) && tx_data.signature != H256::max() {
+                    println!("[MINER] received tx with signature = {:?}", tx_data.signature);
                     self.tx_pool.insert(tx_data);
                 }
-                println!("tx data = {:#?}", tx_data);
             }
             Ok(GossipMessage::BlockRequest(height)) => {
                 // set up a tcp stream to the incoming peer and send
@@ -210,16 +217,21 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
                     self.blockchain.last_block()
                 };
 
-                println!("requested block height = {:#?}", height);
+                println!("[MINER] requested block height = {}", height);
 
-                return Ok(Some(MessageToPeer {
+                return Ok(MessageToPeer {
                     msg: GossipMessage::Block(requested_block.to_owned()),
                     peer: peer_address,
-                }));
+                });
             }
+            Ok(GossipMessage::Ping) => println!("[MINER] received ping from {:?}", peer_address),
             Err(e) => return Err(e.to_string()),
         }
-        Ok(None)
+
+        Ok(MessageToPeer {
+            msg: GossipMessage::Ping,
+            peer: peer_address,
+        })
     }
 }
 

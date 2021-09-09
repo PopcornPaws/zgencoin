@@ -1,4 +1,4 @@
-use crate::MessageToPeer;
+use crate::GossipResult; 
 use zgc_blockchain::Blockchain;
 
 pub enum NodeStatus<'a> {
@@ -8,6 +8,6 @@ pub enum NodeStatus<'a> {
 }
 
 pub trait Node {
-    fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> Result<MessageToPeer, String>;
-    fn listen(&mut self) -> Result<Option<MessageToPeer>, String>;
+    fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> GossipResult;
+    fn listen(&mut self) -> GossipResult;
 }
