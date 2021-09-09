@@ -5,15 +5,15 @@ use std::cmp::Ordering;
 
 #[derive(Deserialize, Serialize, Clone, Copy, Debug, Default)]
 pub struct TxData {
-    pub(crate) signature: H256,
-    pub(crate) sender: Address,
-    pub(crate) recipient: Address,
-    pub(crate) amount: u64,
+    pub signature: H256,
+    pub sender: Address,
+    pub recipient: Address,
+    pub amount: u64,
 }
 
 impl TxData {
-    pub fn signature(&self) -> H256 {
-        self.signature
+    pub fn as_string(&self) -> String {
+        serde_json::to_string(&self).unwrap()
     }
 }
 
@@ -34,15 +34,5 @@ impl PartialOrd for TxData {
 impl Ord for TxData {
     fn cmp(&self, other: &Self) -> Ordering {
         self.amount.cmp(&other.amount)
-    }
-}
-
-impl TxData {
-    pub fn amount(&self) -> u64 {
-        self.amount
-    }
-
-    pub fn as_string(&self) -> String {
-        serde_json::to_string(&self).unwrap()
     }
 }

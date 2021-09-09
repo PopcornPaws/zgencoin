@@ -54,7 +54,7 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         })
     }
 
-    pub fn mine(&mut self, loops: usize, rng: &mut dyn rand::RngCore) -> Option<Block> {
+    pub fn mine(&mut self, loops: usize, init_nonce: u32) -> Option<Block> {
         // TODO
         // mine in a loop
         // if block found, append to blockchain
@@ -67,17 +67,17 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
                 self.difficulty,
                 *self.blockchain.last_block_hash(),
                 self.hasher.digest(tx.as_string()),
-                rng.gen(),
+                init_nonce,
             );
             let mut block: Option<Block> = None;
             for _ in 0..loops {
                 let header_hash = self.hasher.digest(new_block_header.as_string());
                 if header_hash < target_hash {
-                    let self_mint = self.compute_self_mint_amount(tx.amount());
+                    let self_mint = self.compute_self_mint_amount(tx.amount);
                     let new_mint_tx = self.wallet.new_self_mint(self_mint);
                     let block_data = BlockData {
                         tx: *tx,
-                        mint: new_mint_tx,
+                        mint_tx: new_mint_tx,
                     };
                     let new_block = Block::new(self.blockchain.len(), new_block_header, block_data);
                     self.blockchain.insert(new_block, &self.hasher);
@@ -105,7 +105,7 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
     fn gossip(&mut self, rng: &mut dyn rand::RngCore) -> Result<MessageToPeer, String> {
         let gossip_msg = match self.status {
             NodeStatus::Mining => {
-                if let Some(new_block) = self.mine(100, rng) {
+                if let Some(new_block) = self.mine(100, rng.gen()) {
                     GossipMessage::Block(new_block)
                 } else {
                     GossipMessage::Block(*self.blockchain.last_block())
@@ -196,9 +196,7 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
             Ok(GossipMessage::Transaction(tx_data)) => {
                 // check whether tx_data is already in our TxPool
                 // otherwise append it
-                if !self.tx_pool.contains(&tx_data.signature())
-                    && tx_data.signature() != H256::max()
-                {
+                if !self.tx_pool.contains(&tx_data.signature) && tx_data.signature != H256::max() {
                     self.tx_pool.insert(tx_data);
                 }
                 println!("tx data = {:#?}", tx_data);
@@ -228,17 +226,14 @@ impl<T: Hasher> Node for Miner<'_, '_, '_, T> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha8Rng as Cc8;
     use zgc_common::Address;
     use zgc_crypto::Sha256;
 
     #[test]
-    fn test_mine() {
+    fn test_easy_mine() {
         let own_ip = "127.0.0.1:7788";
         let ip_pool = &["127.0.0.1:7789"];
         let hasher = Sha256::new();
-        let mut rng = Cc8::from_seed(Default::default());
         let mut miner = Miner::new(own_ip, ip_pool, hasher, 1, 5, "miner_priv@key").unwrap();
 
         let peer_priv_key = "peer_priv@key";
@@ -248,14 +243,73 @@ mod test {
             .new_transaction(150, recipient, peer_priv_key)
             .unwrap();
         miner.tx_pool.insert(new_tx);
-        let block = miner.mine(100, &mut rng).unwrap();
+        let block = miner.mine(100, 100_000).unwrap();
 
         assert_eq!(block.height(), 1); // comes right after the genesis block
         assert_eq!(
             block.previous_hash(),
             &miner.hasher.digest(Block::genesis().header_string())
         );
-        assert_eq!(block.tx_data().signature(), new_tx.signature());
-        assert_eq!(2, miner.blockchain.len());
+        assert_eq!(block.data().tx.signature, new_tx.signature);
+        assert_eq!(block.data().mint_tx.signature, H256::max());
+        assert_eq!(block.data().mint_tx.amount, 1);
+        assert_eq!(miner.blockchain.len(), 2);
+        assert_eq!(block.nonce(), 100_002);
+    }
+
+    #[test]
+    fn test_medium_mine() {
+        let own_ip = "127.0.0.1:7780";
+        let ip_pool = &["127.0.0.1:7781"];
+        let hasher = Sha256::new();
+        let mut miner = Miner::new(own_ip, ip_pool, hasher, 2, 5, "miner_priv@key").unwrap();
+
+        let peer_priv_key = "peer_priv@key";
+        let peer_wallet = Wallet::new(peer_priv_key);
+        let recipient = Address::try_from_str("9961003ec5189ff5bd86418247db65c1c36cadf2").unwrap();
+        let new_tx = peer_wallet
+            .new_transaction(15_000, recipient, peer_priv_key)
+            .unwrap();
+        miner.tx_pool.insert(new_tx);
+        let block = miner.mine(1000, 100_000).unwrap();
+
+        assert_eq!(block.height(), 1); // comes right after the genesis block
+        assert_eq!(
+            block.previous_hash(),
+            &miner.hasher.digest(Block::genesis().header_string())
+        );
+        assert_eq!(block.data().tx.signature, new_tx.signature);
+        assert_eq!(block.data().mint_tx.signature, H256::max());
+        assert_eq!(block.data().mint_tx.amount, 300);
+        assert_eq!(miner.blockchain.len(), 2);
+        assert_eq!(block.nonce(), 100_229);
+    }
+
+    #[test]
+    fn test_hard_mine() {
+        let own_ip = "127.0.0.1:7782";
+        let ip_pool = &["127.0.0.1:7783"];
+        let hasher = Sha256::new();
+        let mut miner = Miner::new(own_ip, ip_pool, hasher, 3, 5, "miner_priv@key").unwrap();
+
+        let peer_priv_key = "peer_priv@key";
+        let peer_wallet = Wallet::new(peer_priv_key);
+        let recipient = Address::try_from_str("9961003ec5189ff5bd86418247db65c1c36cadf2").unwrap();
+        let new_tx = peer_wallet
+            .new_transaction(2000, recipient, peer_priv_key)
+            .unwrap();
+        miner.tx_pool.insert(new_tx);
+        let block = miner.mine(10000, 100_000).unwrap();
+
+        assert_eq!(block.height(), 1); // comes right after the genesis block
+        assert_eq!(
+            block.previous_hash(),
+            &miner.hasher.digest(Block::genesis().header_string())
+        );
+        assert_eq!(block.data().tx.signature, new_tx.signature);
+        assert_eq!(block.data().mint_tx.signature, H256::max());
+        assert_eq!(block.data().mint_tx.amount, 60);
+        assert_eq!(miner.blockchain.len(), 2);
+        assert_eq!(block.nonce(), 102_300);
     }
 }

@@ -35,8 +35,12 @@ impl Block {
         self.header.as_string()
     }
 
-    pub fn tx_data(&self) -> &TxData {
-        &self.data.tx
+    pub fn data(&self) -> &BlockData {
+        &self.data
+    }
+
+    pub fn nonce(&self) -> u32 {
+        self.header.nonce
     }
 }
 
@@ -63,10 +67,6 @@ impl BlockHeader {
         serde_json::to_string(&self).expect("failed to serialize block header")
     }
 
-    pub fn nonce(&self) -> u32 {
-        self.nonce
-    }
-
     pub fn nonce_mut(&mut self) -> &mut u32 {
         &mut self.nonce
     }
@@ -75,5 +75,5 @@ impl BlockHeader {
 #[derive(Deserialize, Serialize, Clone, Copy, Default, Debug)]
 pub struct BlockData {
     pub tx: TxData,
-    pub mint: TxData,
+    pub mint_tx: TxData,
 }

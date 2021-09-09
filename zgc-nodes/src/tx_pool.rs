@@ -22,7 +22,7 @@ impl TxPool<'_> {
 
     pub fn insert(&mut self, tx: TxData) {
         let tx_box = Box::leak(Box::new(tx));
-        self.transactions.insert(tx.signature(), tx_box);
+        self.transactions.insert(tx.signature, tx_box);
         self.amount_order.push(tx_box);
         self.amount_order.sort();
     }
@@ -33,7 +33,7 @@ impl TxPool<'_> {
 
     pub fn remove_last(&mut self) {
         if let Some(tx_data) = self.amount_order.pop() {
-            self.transactions.remove(&tx_data.signature());
+            self.transactions.remove(&tx_data.signature);
         }
     }
 }
