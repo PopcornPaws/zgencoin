@@ -54,13 +54,12 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         })
     }
 
-    pub fn set_status_to_mining(&mut self) {
+    fn set_status_to_mining(&mut self) {
         self.status = NodeStatus::Mining;
     }
 
     pub fn mine(&mut self, loops: usize, init_nonce: u32) -> Option<Block> {
         // TODO
-        // mine in a loop
         // if block found, append to blockchain
         // throw out forks because our blockchain is the longest?
         // get the highest amount to mine first
@@ -85,7 +84,6 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
                         mint_tx: new_mint_tx,
                     };
                     let new_block = Block::new(self.blockchain.len(), new_block_header, block_data);
-                    //println!("[MINER] successfully mined block with nonce: {}", new_block.nonce());
                     println!("[MINER] successfully mined block: {:#?}", new_block);
                     self.blockchain.insert(new_block, &self.hasher);
                     block = Some(new_block);
