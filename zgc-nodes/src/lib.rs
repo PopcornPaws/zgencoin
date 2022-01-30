@@ -1,9 +1,11 @@
 mod miner;
+mod multithreading;
 mod node;
 mod thin_node;
 mod tx_pool;
 
 pub use miner::Miner;
+pub use multithreading::Miner as MultiMiner;
 pub use node::Node;
 pub use thin_node::ThinNode;
 

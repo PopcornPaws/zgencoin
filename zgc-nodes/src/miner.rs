@@ -54,7 +54,7 @@ impl<T: Hasher> Miner<'_, '_, '_, T> {
         })
     }
 
-    fn set_status_to_mining(&mut self) {
+    pub fn set_status_to_mining(&mut self) {
         self.status = NodeStatus::Mining;
     }
 
